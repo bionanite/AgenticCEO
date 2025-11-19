@@ -3,8 +3,9 @@ agentic_ceo.py
 
 Core Agentic CEO engine with:
 - Master schema for Agentic CEO
+- Rich CEOTask model (priority, area, suggested_owner)
 - Tool interface + example LogTool
-- LLM interface (pluggable)
+- LLM interface (pluggable, e.g. OpenAILLM)
 - AgenticCEO class (plan → decide → act loop)
 - Persistent MemoryEngine integration (ceo_memory.json)
 """
@@ -55,10 +56,19 @@ class CEOObjective(BaseModel):
 
 
 class CEOTask(BaseModel):
+    """
+    Rich task model so the CEO can actually delegate and reason about work.
+    """
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
     description: str
     objective_id: Optional[str] = None
+
+    # NEW FIELDS
+    priority: int = Field(ge=1, le=5, default=3)  # 1 = highest leverage
+    area: str = "general"                         # growth | ops | product | finance | ...
+    suggested_owner: str = "CEO-Agent"           # CEO-Agent | CRO | COO | CTO | Marketing Lead | ...
+
     owner: str = "CEO-Agent"
     due_date: Optional[dt.date] = None
     status: str = "todo"  # todo | in-progress | done | blocked
@@ -202,9 +212,11 @@ class AgenticCEO:
         plan_text = self.llm.complete(system_prompt, user_prompt)
 
         # Token logging (if llm supports it)
-        if hasattr(self.llm, "get_last_usage"):
+        try:
             usage = self.llm.get_last_usage()
             self.memory.record_token_usage("daily_plan", usage)
+        except Exception:
+            pass
 
         # Log decision
         self.memory.record_decision(
@@ -236,16 +248,18 @@ class AgenticCEO:
             "DECISION:\n"
             "- short explanation\n\n"
             "TASKS:\n"
-            "1. task title – short description\n"
+            "1. [area, OWNER, P1] task title – short description\n"
             "2. ...\n"
         )
 
         response = self.llm.complete(system_prompt, user_prompt)
 
         # Token logging
-        if hasattr(self.llm, "get_last_usage"):
+        try:
             usage = self.llm.get_last_usage()
             self.memory.record_token_usage("event_decision", usage)
+        except Exception:
+            pass
 
         # Log event + decision into long-term memory
         self.memory.record_event(event_type=event.type, payload=event.payload)
@@ -313,8 +327,11 @@ class AgenticCEO:
         Parse numbered tasks from LLM response.
 
         Expected formats under a 'TASKS:' heading:
-          1. Title – description
-          2. Another task - something
+
+          1. Do something important
+          2. [growth, CRO, P1] Run campaign – description
+
+        - Optional metadata in [...] gives area, suggested_owner, priority.
         """
         lines = text.splitlines()
         in_tasks = False
@@ -336,6 +353,34 @@ class AgenticCEO:
                 # Remove "1." prefix
                 content = stripped[2:].strip()
 
+                # ---------- Optional [area, OWNER, P1] metadata ----------
+                area = "general"
+                suggested_owner = "CEO-Agent"
+                priority = 3
+
+                if content.startswith("["):
+                    closing = content.find("]")
+                    if closing != -1:
+                        meta_block = content[1:closing]
+                        content = content[closing + 1 :].strip()
+                        meta_parts = [p.strip() for p in meta_block.split(",")]
+
+                        if len(meta_parts) >= 1 and meta_parts[0]:
+                            area = meta_parts[0].lower()
+
+                        if len(meta_parts) >= 2 and meta_parts[1]:
+                            suggested_owner = meta_parts[1]
+
+                        if len(meta_parts) >= 3 and meta_parts[2]:
+                            # Expect formats like "P1", "P2", etc.
+                            pr = meta_parts[2].upper()
+                            if pr.startswith("P"):
+                                try:
+                                    priority = int(pr[1:])
+                                except ValueError:
+                                    priority = 3
+
+                # ---------- Split title / description ----------
                 # Split on "–" (en dash) first, then "-" as fallback
                 parts = content.split("–", 1)
                 if len(parts) == 1:
@@ -349,7 +394,7 @@ class AgenticCEO:
                 suggested_tool = "log_tool"
                 message_text = desc
 
-                # Route certain titles to Slack if tools exist
+                # Route certain titles to Slack if such a tool exists
                 if "message the team" in lower_title or "notify the team" in lower_title:
                     suggested_tool = "slack_tool"
                     tool_input = {"message": f"[Agentic CEO] {message_text}"}
@@ -366,7 +411,57 @@ class AgenticCEO:
                         due_date=self.state.date,
                         suggested_tool=suggested_tool,
                         tool_input=tool_input,
+                        area=area,
+                        suggested_owner=suggested_owner,
+                        priority=priority,
                     )
                 )
 
         return tasks
+
+
+# Optional: simple dummy LLM for standalone testing of this file.
+class DummyLLM:
+    def __init__(self) -> None:
+        self._usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    def complete(self, system_prompt: str, user_prompt: str) -> str:
+        self._usage = {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+        return (
+            "PLAN:\n"
+            "- Example plan.\n\n"
+            "TASKS:\n"
+            "1. [growth, CRO, P1] Launch campaign – Do a thing.\n"
+            "2. [ops, COO, P2] Fix process – Another thing.\n"
+        )
+
+    def get_last_usage(self) -> Dict[str, int]:
+        return self._usage
+
+
+if __name__ == "__main__":
+    # Minimal demo if you run `python agentic_ceo.py` directly
+    company = CompanyProfile(
+        name="DemoCo",
+        industry="Demo",
+        vision="Test",
+        mission="Test",
+        north_star_metric="Demo Metric",
+    )
+    llm = DummyLLM()
+    ceo = AgenticCEO(company=company, llm=llm)
+    log_sink: List[str] = []
+    ceo.register_tool(LogTool(sink=log_sink))
+
+    print("=== DAILY PLAN ===")
+    plan = ceo.plan_day()
+    print(plan)
+
+    print("\n=== RUN TASKS ===")
+    for t in list(ceo.state.tasks):
+        if t.status != "done":
+            print(ceo.run_task(t))
+
+    print("\n=== LOG SINK ===")
+    for line in log_sink:
+        print(line)

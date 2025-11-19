@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 import yaml
 from dotenv import load_dotenv
@@ -10,19 +10,7 @@ from agentic_ceo import AgenticCEO, CompanyProfile, CEOEvent, LogTool
 from memory_engine import MemoryEngine
 from kpi_engine import KPIEngine, KPIThreshold
 from llm_openai import OpenAILLM, LLMClient
-
-# If you have these modules, they can be used for delegation.
-# If not, the imports will be ignored and delegation methods will no-op.
-try:
-    from agents import CROAgent, COOAgent, CTOAgent  # type: ignore
-    from delegation_tools import (  # type: ignore
-        CRODelegationTool,
-        COODelegationTool,
-        CTODelegationTool,
-    )
-except Exception:  # pragma: no cover
-    CROAgent = COOAgent = CTOAgent = None  # type: ignore
-    CRODelegationTool = COODelegationTool = CTODelegationTool = None  # type: ignore
+from agents import CROAgent, COOAgent, CTOAgent
 
 load_dotenv()
 
@@ -84,12 +72,12 @@ def load_company_profile_from_config(
 
 class CompanyBrain:
     """
-    High-level orchestrator around AgenticCEO + KPIEngine.
+    High-level orchestrator around AgenticCEO + KPIEngine + functional agents (CRO/COO/CTO).
 
     - Loads company profile & KPIs from YAML
     - Holds the OpenAI LLM client
     - Exposes helpers: record_kpi, ingest_event, run_pending_tasks,
-      snapshot, personal_briefing, delegation to CRO/COO/CTO agents.
+      snapshot, personal_briefing, delegation to CRO/COO/CTO.
     """
 
     def __init__(
@@ -106,7 +94,7 @@ class CompanyBrain:
         log_tool = LogTool(sink=self.log_sink)
 
         tools = {"log_tool": log_tool}
-        # If you implemented SlackTool/EmailTool/NotionTool you can add them here.
+        # If/when you add Slack/Email/Notion tools, register them here.
 
         self.ceo = AgenticCEO(
             company=company_profile,
@@ -118,10 +106,10 @@ class CompanyBrain:
         self.kpi_engine = KPIEngine()
         self.kpi_engine.register_many(kpi_thresholds)
 
-        # Disable specialist functional agents unless fully configured
-        self.cro_agent = None
-        self.coo_agent = None
-        self.cto_agent = None
+        # Specialist agents (CRO / COO / CTO)
+        self.cro_agent: Optional[CROAgent] = CROAgent.create(llm)
+        self.coo_agent: Optional[COOAgent] = COOAgent.create(llm)
+        self.cto_agent: Optional[CTOAgent] = CTOAgent.create(llm)
 
     # ------------- Core wiring -------------
 
@@ -143,14 +131,6 @@ class CompanyBrain:
         event = CEOEvent(type=event_type, payload=payload)
         return self.ceo.ingest_event(event)
 
-    def run_pending_tasks(self) -> List[Dict[str, Any]]:
-        results: List[Dict[str, Any]] = []
-        for t in list(self.ceo.state.tasks):
-            if t.status != "done":
-                res = self.ceo.run_task(t)
-                results.append({"task": t.title, "result": res})
-        return results
-
     # ------------- Delegation helpers -------------
 
     def _build_company_context(self) -> str:
@@ -170,19 +150,88 @@ class CompanyBrain:
         if not self.cro_agent:
             return "CROAgent not configured."
         context = self._build_company_context() + "\n" + extra_context
-        return self.cro_agent.run(instruction, context=context)  # type: ignore
+        return self.cro_agent.run(instruction, context=context)
 
     def delegate_to_coo(self, instruction: str, extra_context: str = "") -> str:
         if not self.coo_agent:
             return "COOAgent not configured."
         context = self._build_company_context() + "\n" + extra_context
-        return self.coo_agent.run(instruction, context=context)  # type: ignore
+        return self.coo_agent.run(instruction, context=context)
 
     def delegate_to_cto(self, instruction: str, extra_context: str = "") -> str:
         if not self.cto_agent:
             return "CTOAgent not configured."
         context = self._build_company_context() + "\n" + extra_context
-        return self.cto_agent.run(instruction, context=context)  # type: ignore
+        return self.cto_agent.run(instruction, context=context)
+
+    # ------------- Agent routing for tasks -------------
+
+    def _maybe_delegate_task_to_agent(self, task) -> Optional[Dict[str, Any]]:
+        """
+        Decide if a task should go to CRO/COO/CTO based on its area and route it.
+        Returns a result dict if delegated, otherwise None.
+        """
+        area = (task.area or "").lower()
+        desc = task.description or task.title
+
+        # Map area -> agent
+        agent_name = None
+        responder = None
+
+        # Revenue / growth / marketing → CRO
+        if any(key in area for key in ["revenue", "growth", "mrr", "mau", "marketing", "sales"]):
+            agent_name = "CROAgent"
+            responder = self.delegate_to_cro
+
+        # Operations / CX / customer success → COO
+        elif any(key in area for key in ["ops", "operations", "cx", "customer success", "service", "support"]):
+            agent_name = "COOAgent"
+            responder = self.delegate_to_coo
+
+        # Product / tech / engineering / data → CTO
+        elif any(key in area for key in ["product", "tech", "engineering", "data", "ai"]):
+            agent_name = "CTOAgent"
+            responder = self.delegate_to_cto
+
+        if not responder:
+            return None
+
+        # Call the agent with context + instruction
+        context = f"Task Title: {task.title}\nSuggested Owner: {task.suggested_owner}\nPriority: P{task.priority}"
+        answer = responder(desc, extra_context=context)
+
+        # Log into memory as a 'tool' call for traceability
+        self.ceo.memory.record_tool_call(
+            tool_name=agent_name,
+            payload={"task_title": task.title, "area": task.area, "description": desc},
+            result={"answer": answer},
+        )
+
+        task.status = "done"
+
+        return {"status": "done", "tool": agent_name, "result": answer}
+
+    def run_pending_tasks(self) -> List[Dict[str, Any]]:
+        """
+        Run all not-done tasks.
+
+        Order:
+        - Try to route to CRO/COO/CTO based on area.
+        - If no agent mapping, fall back to AgenticCEO.run_task() (log_tool/manual).
+        """
+        results: List[Dict[str, Any]] = []
+        for t in list(self.ceo.state.tasks):
+            if t.status != "done":
+                # Try CRO/COO/CTO delegation first
+                delegated = self._maybe_delegate_task_to_agent(t)
+                if delegated is not None:
+                    results.append({"task": t.title, "result": delegated})
+                    continue
+
+                # Fallback: CEO's own tool routing (log_tool, etc.)
+                res = self.ceo.run_task(t)
+                results.append({"task": t.title, "result": res})
+        return results
 
     # ------------- Higher-level views -------------
 
@@ -242,7 +291,7 @@ class CompanyBrain:
         return cls(company_profile=profile, llm=llm, kpi_thresholds=kpis)
 
 
-# Convenience for other modules (e.g. Slack server)
+# Convenience for other modules (e.g. Slack server later)
 def create_default_brain() -> CompanyBrain:
     return CompanyBrain.from_config()
 
@@ -257,7 +306,6 @@ if __name__ == "__main__":
     plan = brain.plan_day()
     print(plan)
 
-    # Example multi-KPI recording — adjust numbers as you like
     print("\n=== KPI UPDATES ===")
     sample_values = {
         "MRR": 140000.0,

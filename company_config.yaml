@@ -13,7 +13,12 @@ companies:
       - "Key holding"
       - "Facilities management"
     team_size: 150
-    website: "https://guardianfm.co.uk"
+    website: "https://guardianfm.com"
+    kpis:
+      - name: "MRR"
+        min: 150000
+        max: null
+        unit: "GBP"
 
   next_ecosystem:
     name: "Next Ecosystem"
@@ -32,4 +37,13 @@ companies:
       - "NextTravel"
       - "NextEat"
     team_size: 40
-    website: "https://nextsnap.life"
+    website: "https://nextsnap.ai"
+    kpis:
+      - name: "MRR"
+        min: 150000
+        max: null
+        unit: "GBP"
+      - name: "MAU"
+        min: 50000
+        max: null
+        unit: "users"
