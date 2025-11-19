@@ -84,8 +84,7 @@ class MemoryEngine:
         self,
         metric_name: str,
         value: float,
-        unit: str = "",
-        source: str = "",
+        metadata: Dict[str, Any] | None = None,
     ) -> None:
         """
         Store KPI readings so we can summarise them in daily reflection.
@@ -94,8 +93,7 @@ class MemoryEngine:
             "timestamp": dt.datetime.utcnow().isoformat(),
             "metric_name": metric_name,
             "value": value,
-            "unit": unit,
-            "source": source,
+            "metadata": metadata or {},
         }
         self._memory.setdefault("kpis", []).append(entry)
         self._save()

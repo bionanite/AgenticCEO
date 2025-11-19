@@ -1,101 +1,126 @@
-# kpi_engine.py
+"""
+kpi_engine.py
+
+Multi-KPI monitoring engine.
+
+- Define KPIThresholds per company (min/max, unit).
+- Record KPI readings and store them via MemoryEngine.
+- Trigger Agentic CEO decisions when out-of-range.
+"""
+
 from __future__ import annotations
 
 import datetime as dt
-from typing import Dict, Any, List, Optional
+from typing import Dict, Optional, Any, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from agentic_ceo import AgenticCEO, CEOEvent
 
 
 class KPIThreshold(BaseModel):
-    metric_name: str
-    min_value: Optional[float] = None  # e.g. MRR must be >= X
-    max_value: Optional[float] = None  # e.g. churn % must be <= Y
-    direction: str = "good_high"  # "good_high" or "good_low"
-
-
-class KPIReading(BaseModel):
-    timestamp: str
-    metric_name: str
-    value: float
+    name: str
+    min_value: Optional[float] = None
+    max_value: Optional[float] = None
     unit: str = ""
-    source: str = ""
 
 
-class KPIAlert(BaseModel):
-    metric_name: str
-    value: float
-    threshold: KPIThreshold
-    message: str
-    severity: str = "warning"  # or "critical"
-
-
-class KPIEngine:
+class KPIEngine(BaseModel):
     """
-    Tracks KPIs, evaluates thresholds, and emits alerts.
+    Holds KPI thresholds and checks readings against them.
     """
 
-    def __init__(self, thresholds: Optional[List[KPIThreshold]] = None) -> None:
-        self.thresholds: Dict[str, KPIThreshold] = {
-            t.metric_name: t for t in (thresholds or [])
-        }
-        self.readings: List[KPIReading] = []
+    thresholds: Dict[str, KPIThreshold] = Field(default_factory=dict)
 
-    def _now_iso(self) -> str:
-        return dt.datetime.utcnow().isoformat()
+    def register_threshold(self, threshold: KPIThreshold) -> None:
+        self.thresholds[threshold.name] = threshold
 
-    def set_threshold(self, threshold: KPIThreshold) -> None:
-        self.thresholds[threshold.metric_name] = threshold
+    def register_many(self, thresholds: List[KPIThreshold]) -> None:
+        for t in thresholds:
+            self.register_threshold(t)
 
     def record_kpi(
         self,
+        ceo: AgenticCEO,
         metric_name: str,
         value: float,
-        unit: str = "",
-        source: str = "",
-    ) -> KPIReading:
-        reading = KPIReading(
-            timestamp=self._now_iso(),
-            metric_name=metric_name,
-            value=value,
-            unit=unit,
-            source=source,
+        unit: str,
+        source: str = "manual",
+    ) -> Dict[str, Any]:
+        """
+        Store a KPI reading in memory and, if out of range, trigger an event-driven CEO decision.
+
+        Returns:
+            {
+              "reading": {...},
+              "alerts_triggered": int,
+              "alert_decisions": [str, ...]
+            }
+        """
+        timestamp = dt.datetime.utcnow()
+        reading = {
+            "timestamp": timestamp.isoformat(),
+            "metric_name": metric_name,
+            "value": value,
+            "unit": unit,
+            "source": source,
+        }
+
+        # Store KPI in memory correctly using metadata dict
+        ceo.memory.record_kpi(
+            metric_name,
+            value,
+            metadata={
+                "unit": unit,
+                "source": source,
+                "timestamp": timestamp.isoformat(),
+            },
         )
-        self.readings.append(reading)
-        return reading
 
-    def evaluate_alerts(self, reading: KPIReading) -> List[KPIAlert]:
-        alerts: List[KPIAlert] = []
-        th = self.thresholds.get(reading.metric_name)
-        if not th:
-            return alerts
+        threshold = self.thresholds.get(metric_name)
+        if not threshold:
+            return {
+                "reading": reading,
+                "alerts_triggered": 0,
+                "alert_decisions": [],
+            }
 
-        triggered = False
-        msg_parts = []
+        messages: List[str] = []
+        out_of_range = False
 
-        if th.min_value is not None and reading.value < th.min_value:
-            triggered = True
-            msg_parts.append(
-                f"value {reading.value} is below minimum {th.min_value}"
+        if threshold.min_value is not None and value < threshold.min_value:
+            messages.append(
+                f"KPI {metric_name} out of range: value {value} is below minimum {threshold.min_value}"
+            )
+            out_of_range = True
+
+        if threshold.max_value is not None and value > threshold.max_value:
+            messages.append(
+                f"KPI {metric_name} out of range: value {value} is above maximum {threshold.max_value}"
+            )
+            out_of_range = True
+
+        alert_decisions: List[str] = []
+
+        if out_of_range:
+            # Build a KPI alert event and let the CEO decide what to do
+            reason = " ".join(messages)
+            event_payload = {
+                "metric_name": metric_name,
+                "value": value,
+                "unit": unit,
+                "reason": reason,
+                "timestamp": timestamp.isoformat(),
+            }
+            event = CEOEvent(type="kpi_alert", payload=event_payload)
+
+            decision = ceo.ingest_event(event)
+            alert_decisions.append(
+                f"KPI Alert: {metric_name} value {value}. {reason}\n{decision}"
             )
 
-        if th.max_value is not None and reading.value > th.max_value:
-            triggered = True
-            msg_parts.append(
-                f"value {reading.value} is above maximum {th.max_value}"
-            )
-
-        if not triggered:
-            return alerts
-
-        message = f"KPI {reading.metric_name} out of range: " + "; ".join(msg_parts)
-        alerts.append(
-            KPIAlert(
-                metric_name=reading.metric_name,
-                value=reading.value,
-                threshold=th,
-                message=message,
-                severity="critical",
-            )
-        )
-        return alerts
+        return {
+            "reading": reading,
+            "alerts_triggered": len(alert_decisions),
+            "alert_decisions": alert_decisions,
+        }
