@@ -1,0 +1,35 @@
+companies:
+  guardianfm:
+    name: "GuardianFM Ltd"
+    industry: "Security & Facilities Management"
+    vision: "Be the most trusted, AI-first security partner in the UK."
+    mission: "Protect people and property with smart, proactive security teams."
+    north_star_metric: "Monthly Total Manned Hours Billable"
+    primary_markets:
+      - "United Kingdom"
+    products_or_services:
+      - "Manned guarding"
+      - "Mobile patrols"
+      - "Key holding"
+      - "Facilities management"
+    team_size: 150
+    website: "https://guardianfm.co.uk"
+
+  next_ecosystem:
+    name: "Next Ecosystem"
+    industry: "AI Super App"
+    vision: "Connect people, payments, travel, and commerce in one intelligent chat layer."
+    mission: "Make AI-native experiences the default way people live, work, and transact."
+    north_star_metric: "Monthly Active Users (MAU)"
+    primary_markets:
+      - "UAE"
+      - "UK"
+      - "Global"
+    products_or_services:
+      - "NextChat"
+      - "NextFriend"
+      - "NextPay"
+      - "NextTravel"
+      - "NextEat"
+    team_size: 40
+    website: "https://nextsnap.life"
