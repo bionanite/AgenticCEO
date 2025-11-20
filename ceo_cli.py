@@ -8,22 +8,70 @@ Commands (interactive prompt):
   - plan       → Ask CEO to plan the day
   - kpi        → Record a KPI reading (and trigger alerts if out of range)
   - event      → Send a custom CEOEvent
-  - brief      → Get personal CEO briefing (what Sheraz should do today)
+  - brief      → Get personal CEO briefing (what the human CEO should do today)
   - snapshot   → High-level daily snapshot
   - tasks      → Show open task tree (parent/child)
   - vstaff     → Show basic virtual staff info (placeholder for now)
   - run        → Run all pending tasks (delegation + virtual staff)
   - help       → Show commands
   - quit/exit  → Leave CLI
+
+You can control which company + mode via CLI flags or environment:
+
+  AGENTIC_CEO_CONFIG  → path to company_config.yaml (default: company_config.yaml)
+  AGENTIC_CEO_COMPANY → key under companies: (default: next_ecosystem)
+  AGENTIC_CEO_MODE    → auto | approval | dry_run (default: auto)
+
+Examples:
+
+  python ceo_cli.py
+  python ceo_cli.py --company guardianfm
+  python ceo_cli.py --company servionsoft --mode approval
 """
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import sys
 from typing import Any, Dict
 
-from company_brain import create_default_brain, CompanyBrain
+from company_brain import CompanyBrain
+
+# ------------------------------------------------------------
+# CLI helpers
+# ------------------------------------------------------------
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Agentic CEO CLI for any company defined in company_config.yaml"
+    )
+
+    parser.add_argument(
+        "--config",
+        default=os.getenv("AGENTIC_CEO_CONFIG", "company_config.yaml"),
+        help="Path to company_config.yaml (default: env AGENTIC_CEO_CONFIG or company_config.yaml)",
+    )
+    parser.add_argument(
+        "--company",
+        default=os.getenv("AGENTIC_CEO_COMPANY", "next_ecosystem"),
+        help="Company key under `companies:` in YAML (default: env AGENTIC_CEO_COMPANY or 'next_ecosystem')",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["auto", "approval", "dry_run"],
+        default=os.getenv("AGENTIC_CEO_MODE", "auto"),
+        help="Execution mode: auto | approval | dry_run (default: env AGENTIC_CEO_MODE or 'auto')",
+    )
+
+    return parser.parse_args()
+
+
+# ------------------------------------------------------------
+# Command implementations
+# ------------------------------------------------------------
 
 
 def cmd_plan(brain: CompanyBrain) -> None:
@@ -123,8 +171,6 @@ def cmd_vstaff(brain: CompanyBrain) -> None:
     """
     print("\n=== VIRTUAL STAFF (BASIC INFO) ===")
     try:
-        # We know virtual_staff exists, but not its public snapshot API yet.
-        # So keep this minimal and safe.
         print(f"Company ID: {brain.company_id}")
         print("Virtual staff manager is initialized.")
         print("Dashboard view can be added once VirtualStaffManager exposes a snapshot helper.")
@@ -150,7 +196,7 @@ def print_help() -> None:
         "  plan       - Generate daily plan\n"
         "  kpi        - Record a KPI reading (and handle alerts)\n"
         "  event      - Send a custom CEOEvent\n"
-        "  brief      - Show personal CEO briefing (3 actions for Sheraz)\n"
+        "  brief      - Show personal CEO briefing (3 actions for the human CEO)\n"
         "  snapshot   - Show compact summary (decisions, KPIs, tokens, etc.)\n"
         "  tasks      - Show open task tree (parent/child tasks)\n"
         "  vstaff     - Show basic virtual staff info\n"
@@ -160,10 +206,28 @@ def print_help() -> None:
     )
 
 
+# ------------------------------------------------------------
+# Main
+# ------------------------------------------------------------
+
+
 def main() -> None:
-    brain = create_default_brain()
+    args = parse_args()
+
+    try:
+        brain = CompanyBrain.from_config(
+            config_path=args.config,
+            company_key=args.company,
+            execution_mode=args.mode,
+        )
+    except Exception as e:
+        print(f"Failed to initialize CompanyBrain: {e}")
+        sys.exit(1)
 
     print("Agentic CEO CLI")
+    print(f"- Config:  {args.config}")
+    print(f"- Company: {args.company} ({brain.company_profile.name})")
+    print(f"- Mode:    {args.mode}")
     print("Type 'help' to see available commands.\n")
 
     while True:

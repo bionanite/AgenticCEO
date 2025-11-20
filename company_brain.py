@@ -16,6 +16,7 @@ from task_manager import TaskManager
 
 load_dotenv()
 
+# These just define defaults – the system works with ANY company key in your YAML.
 DEFAULT_CONFIG_PATH = os.getenv("AGENTIC_CEO_CONFIG", "company_config.yaml")
 DEFAULT_COMPANY_KEY = os.getenv("AGENTIC_CEO_COMPANY", "next_ecosystem")
 
@@ -34,6 +35,30 @@ def load_company_profile_from_config(
     config_path: str,
     company_key: str,
 ) -> Tuple[CompanyProfile, List[KPIThreshold]]:
+    """
+    Load a single company's profile + KPI thresholds from a multi-company YAML.
+
+    YAML structure:
+
+    companies:
+      next_ecosystem:
+        name: "Next Ecosystem"
+        industry: "AI Super App"
+        north_star_metric: "MAU"
+        kpis:
+          - name: "MRR"
+            min: 300000
+            unit: "USD"
+          - name: "MAU"
+            min: 150000
+            unit: "users"
+
+      guardianfm:
+        name: "GuardianFM Ltd"
+        ...
+
+    Any key under `companies:` can be used as company_key.
+    """
     cfg = load_company_config(config_path)
     companies = cfg.get("companies", {})
     if company_key not in companies:
@@ -74,16 +99,16 @@ def load_company_profile_from_config(
 
 class CompanyBrain:
     """
-    High-level orchestrator around AgenticCEO + KPIEngine + functional agents (CRO/COO/CTO)
-    + VirtualStaffManager (autonomous virtual org) + TaskManager (task tree + reviews).
+    High-level orchestrator around:
+      - AgenticCEO (planning, events, tools, memory)
+      - KPIEngine (thresholds + alerts)
+      - Functional agents (CRO / COO / CTO)
+      - VirtualStaffManager (autonomous virtual org)
+      - TaskManager (task tree, delegation, reviews)
 
-    - Loads company profile & KPIs from YAML
-    - Holds the OpenAI LLM client
-    - Exposes helpers: record_kpi, ingest_event, run_pending_tasks,
-      snapshot, personal_briefing, delegation to CRO/COO/CTO
-    - Auto-spawns virtual employees when KPIs are under stress
-    - Routes tasks to human-like specialist agents + virtual staff
-    - Maintains parent/child tasks + delegate reviews via TaskManager
+    It is fully multi-company and config-driven:
+    - YAML defines all companies under `companies:`
+    - You select which one with `company_key` (or env AGENTIC_CEO_COMPANY)
     """
 
     def __init__(
@@ -92,6 +117,9 @@ class CompanyBrain:
         llm: LLMClient,
         kpi_thresholds: List[KPIThreshold],
         company_id: Optional[str] = None,
+        mcp_client: Any = None,
+        execution_mode: str = "auto",  # auto | approval | dry_run
+        tools: Optional[Dict[str, Any]] = None,
     ) -> None:
         # Core shared memory
         self.memory = MemoryEngine()
@@ -105,15 +133,23 @@ class CompanyBrain:
         self.log_sink: List[str] = []
         log_tool = LogTool(sink=self.log_sink)
 
-        tools = {"log_tool": log_tool}
-        # If/when you add Slack/Email/Notion tools, register them here.
+        # Allow caller to inject extra tools (Slack, Notion, etc.)
+        tools = tools or {}
+        if "log_tool" not in tools:
+            tools["log_tool"] = log_tool
 
         self.ceo = AgenticCEO(
             company=company_profile,
             llm=llm,
             tools=tools,
             memory_engine=self.memory,
+            mcp_client=mcp_client,
+            execution_mode=execution_mode,
         )
+
+        self.tools = tools
+        self.execution_mode = execution_mode
+        self.mcp_client = mcp_client
 
         # KPI engine
         self.kpi_engine = KPIEngine()
@@ -465,7 +501,7 @@ class CompanyBrain:
 
     def personal_briefing(self) -> str:
         """
-        Chief-of-Staff style: what should the human CEO (Sheraz) personally do today?
+        Chief-of-Staff style: what should the human CEO personally do today?
         Focus on 3 concrete, real-world actions – not stats about decisions/events.
         """
         summary = self.ceo.memory.summarize_day(self.ceo.state.date)
@@ -651,17 +687,40 @@ class CompanyBrain:
         cls,
         config_path: str = DEFAULT_CONFIG_PATH,
         company_key: str = DEFAULT_COMPANY_KEY,
+        mcp_client: Any = None,
+        execution_mode: str = "auto",
+        tools: Optional[Dict[str, Any]] = None,
     ) -> "CompanyBrain":
+        """
+        Main entry point for most uses.
+
+        Example:
+            brain = CompanyBrain.from_config(
+                config_path="company_config.yaml",
+                company_key="guardianfm",
+            )
+        """
         profile, kpis = load_company_profile_from_config(config_path, company_key)
         llm = OpenAILLM(model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
+
         return cls(
             company_profile=profile,
             llm=llm,
             kpi_thresholds=kpis,
             company_id=company_key,
+            mcp_client=mcp_client,
+            execution_mode=execution_mode,
+            tools=tools,
         )
 
 
-# Convenience for other modules (e.g. Slack server later)
+# Convenience for other modules (e.g. CLI, Slack server, API)
 def create_default_brain() -> CompanyBrain:
+    """
+    Uses:
+      - AGENTIC_CEO_CONFIG  (or company_config.yaml)
+      - AGENTIC_CEO_COMPANY (or 'next_ecosystem')
+
+    You can point this at ANY company key in your YAML.
+    """
     return CompanyBrain.from_config()
