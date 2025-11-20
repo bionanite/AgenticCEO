@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 import yaml
 from dotenv import load_dotenv
@@ -11,6 +11,8 @@ from memory_engine import MemoryEngine
 from kpi_engine import KPIEngine, KPIThreshold
 from llm_openai import OpenAILLM, LLMClient
 from agents import CROAgent, COOAgent, CTOAgent
+from virtual_staff_manager import VirtualStaffManager
+from task_manager import TaskManager
 
 load_dotenv()
 
@@ -31,7 +33,7 @@ def load_company_config(path: str) -> Dict[str, Any]:
 def load_company_profile_from_config(
     config_path: str,
     company_key: str,
-) -> (CompanyProfile, List[KPIThreshold]):
+) -> Tuple[CompanyProfile, List[KPIThreshold]]:
     cfg = load_company_config(config_path)
     companies = cfg.get("companies", {})
     if company_key not in companies:
@@ -72,12 +74,16 @@ def load_company_profile_from_config(
 
 class CompanyBrain:
     """
-    High-level orchestrator around AgenticCEO + KPIEngine + functional agents (CRO/COO/CTO).
+    High-level orchestrator around AgenticCEO + KPIEngine + functional agents (CRO/COO/CTO)
+    + VirtualStaffManager (autonomous virtual org) + TaskManager (task tree + reviews).
 
     - Loads company profile & KPIs from YAML
     - Holds the OpenAI LLM client
     - Exposes helpers: record_kpi, ingest_event, run_pending_tasks,
-      snapshot, personal_briefing, delegation to CRO/COO/CTO.
+      snapshot, personal_briefing, delegation to CRO/COO/CTO
+    - Auto-spawns virtual employees when KPIs are under stress
+    - Routes tasks to human-like specialist agents + virtual staff
+    - Maintains parent/child tasks + delegate reviews via TaskManager
     """
 
     def __init__(
@@ -85,9 +91,15 @@ class CompanyBrain:
         company_profile: CompanyProfile,
         llm: LLMClient,
         kpi_thresholds: List[KPIThreshold],
+        company_id: Optional[str] = None,
     ) -> None:
+        # Core shared memory
         self.memory = MemoryEngine()
         self.llm = llm
+
+        # Remember company profile & id for external access
+        self.company_profile = company_profile
+        self.company_id = company_id or company_profile.name
 
         # Core CEO + tools
         self.log_sink: List[str] = []
@@ -103,6 +115,7 @@ class CompanyBrain:
             memory_engine=self.memory,
         )
 
+        # KPI engine
         self.kpi_engine = KPIEngine()
         self.kpi_engine.register_many(kpi_thresholds)
 
@@ -111,15 +124,43 @@ class CompanyBrain:
         self.coo_agent: Optional[COOAgent] = COOAgent.create(llm)
         self.cto_agent: Optional[CTOAgent] = CTOAgent.create(llm)
 
+        # Virtual Staff Manager (auto “virtual hiring” + capacity tracking)
+        self.virtual_staff = VirtualStaffManager(
+            company_id=self.company_id,
+            company_name=self.company_profile.name,
+            storage_dir=os.getenv("AGENTIC_STATE_DIR", ".agentic_state"),
+            memory=self.memory,
+        )
+
+        # TaskManager (parent/child tasks, delegation reviews, tree view)
+        self.task_manager = TaskManager(
+            state=self.ceo.state,
+            memory=self.memory,
+            company_id=self.company_id,
+            storage_dir=os.getenv("AGENTIC_STATE_DIR", ".agentic_state"),
+        )
+
     # ------------- Core wiring -------------
 
     def plan_day(self) -> str:
+        """
+        Ask the AgenticCEO for a daily plan.
+        Tasks are stored inside self.ceo.state.tasks.
+        """
         return self.ceo.plan_day()
 
     def record_kpi(
-        self, metric_name: str, value: float, unit: str, source: str = "manual"
+        self,
+        metric_name: str,
+        value: float,
+        unit: str,
+        source: str = "manual",
     ) -> Dict[str, Any]:
-        return self.kpi_engine.record_kpi(
+        """
+        Record a KPI reading, trigger KPIEngine logic, and then:
+        - If alerts fired, auto-adjust the virtual org (virtual hires where needed).
+        """
+        result = self.kpi_engine.record_kpi(
             ceo=self.ceo,
             metric_name=metric_name,
             value=value,
@@ -127,7 +168,21 @@ class CompanyBrain:
             source=source,
         )
 
+        # If KPI is out of range, auto-consider virtual hires
+        try:
+            alerts = result.get("alerts_triggered", 0)
+            if alerts and alerts > 0:
+                self._auto_virtual_reorg_on_kpi(metric_name, result)
+        except Exception:
+            # Never let auto-hire logic crash KPI recording
+            pass
+
+        return result
+
     def ingest_event(self, event_type: str, payload: Dict[str, Any]) -> str:
+        """
+        Wrapper around AgenticCEO.ingest_event.
+        """
         event = CEOEvent(type=event_type, payload=payload)
         return self.ceo.ingest_event(event)
 
@@ -211,27 +266,191 @@ class CompanyBrain:
 
         return {"status": "done", "tool": agent_name, "result": answer}
 
+    def _maybe_route_task_to_virtual_staff(self, task) -> Optional[Dict[str, Any]]:
+        """
+        If the task's suggested_owner looks like a virtual role
+        (e.g. 'Virtual SDR', 'Virtual Social Media Manager'),
+        ensure capacity and mark the task as assigned to a virtual employee.
+        """
+        owner = (task.suggested_owner or "").strip()
+
+        if not owner:
+            return None
+
+        owner_lower = owner.lower()
+
+        # Heuristic: anything that starts with 'virtual ' or contains 'virtual'
+        if "virtual" not in owner_lower:
+            return None
+
+        # Ensure capacity for that role (auto-hire if needed)
+        reason = f"Auto-assigned for task '{task.title}'"
+        cap_res = self.virtual_staff.ensure_capacity_for_role(
+            role=owner,
+            owner_kpi=None,
+            min_task_slots=10,
+            notes=f"Auto-created/used for task: {task.title}",
+            log_reason=reason,
+        )
+
+        ve = cap_res.get("employee")
+        if ve is None:
+            return None
+
+        # Mark the task as assigned in the manager
+        self.virtual_staff.assign_task_to_virtual_employee(
+            employee_id=ve.id,
+            task_title=task.title,
+            task_payload={"area": task.area, "priority": task.priority},
+        )
+
+        # Still let the CEO run the task (e.g. using log_tool or future tools)
+        run_res = self.ceo.run_task(task)
+
+        return {
+            "status": "done",
+            "virtual_employee_id": ve.id,
+            "virtual_role": ve.role,
+            "capacity_before": cap_res.get("capacity_before"),
+            "capacity_after": cap_res.get("capacity_after"),
+            "ceo_result": run_res,
+        }
+
     def run_pending_tasks(self) -> List[Dict[str, Any]]:
         """
         Run all not-done tasks.
 
         Order:
         - Try to route to CRO/COO/CTO based on area.
-        - If no agent mapping, fall back to AgenticCEO.run_task() (log_tool/manual).
+        - Then try to route to Virtual Staff based on suggested_owner.
+        - If no mapping, fall back to AgenticCEO.run_task() (log_tool/manual).
         """
         results: List[Dict[str, Any]] = []
+
         for t in list(self.ceo.state.tasks):
             if t.status != "done":
-                # Try CRO/COO/CTO delegation first
+                # 1) CRO / COO / CTO delegation
                 delegated = self._maybe_delegate_task_to_agent(t)
                 if delegated is not None:
                     results.append({"task": t.title, "result": delegated})
                     continue
 
-                # Fallback: CEO's own tool routing (log_tool, etc.)
+                # 2) Virtual staff routing based on suggested_owner
+                v_res = self._maybe_route_task_to_virtual_staff(t)
+                if v_res is not None:
+                    results.append({"task": t.title, "result": v_res})
+                    continue
+
+                # 3) Fallback: CEO's own tool routing (log_tool, etc.)
                 res = self.ceo.run_task(t)
                 results.append({"task": t.title, "result": res})
+
         return results
+
+    # ------------- Virtual staff helpers -------------
+
+    def ensure_virtual_capacity(
+        self,
+        role: str,
+        owner_kpi: Optional[str] = None,
+        min_task_slots: int = 10,
+        notes: str = "",
+        log_reason: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Public helper: ensure there is enough virtual capacity for a given role.
+
+        Example:
+            brain.ensure_virtual_capacity(
+                role="Virtual SDR",
+                owner_kpi="Monthly Closed Deals",
+                min_task_slots=20,
+                notes="Auto-hired SDRs because Monthly Closed Deals is below target.",
+            )
+        """
+        return self.virtual_staff.ensure_capacity_for_role(
+            role=role,
+            owner_kpi=owner_kpi,
+            min_task_slots=min_task_slots,
+            notes=notes,
+            log_reason=log_reason,
+        )
+
+    def assign_task_to_virtual_staff(
+        self,
+        employee_id: str,
+        task_title: str,
+        task_payload: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Any]:
+        """
+        Public helper: mark a task as assigned to a given virtual employee.
+        """
+        return self.virtual_staff.assign_task_to_virtual_employee(
+            employee_id=employee_id,
+            task_title=task_title,
+            task_payload=task_payload or {},
+        )
+
+    # ------------- Task manager helpers -------------
+
+    def create_subtask(
+        self,
+        parent_task_id: str,
+        title: str,
+        description: str,
+        area: Optional[str] = None,
+        suggested_owner: Optional[str] = None,
+        priority: Optional[int] = None,
+    ):
+        """
+        Thin wrapper around TaskManager.create_subtask().
+        """
+        return self.task_manager.create_subtask(
+            parent_task_id=parent_task_id,
+            title=title,
+            description=description,
+            area=area,
+            suggested_owner=suggested_owner,
+            priority=priority,
+        )
+
+    def mark_task_done_by_delegate(
+        self,
+        task_id: str,
+        delegate_name: str,
+        notes: str = "",
+    ):
+        """
+        Thin wrapper around TaskManager.mark_task_done_by_delegate().
+        """
+        return self.task_manager.mark_task_done_by_delegate(
+            task_id=task_id,
+            delegate_name=delegate_name,
+            notes=notes,
+        )
+
+    def review_task(
+        self,
+        task_id: str,
+        approved: bool,
+        reviewed_by: str,
+        comments: str = "",
+    ):
+        """
+        Thin wrapper around TaskManager.review_task().
+        """
+        return self.task_manager.review_task(
+            task_id=task_id,
+            approved=approved,
+            reviewed_by=reviewed_by,
+            comments=comments,
+        )
+
+    def open_task_tree(self) -> str:
+        """
+        Pretty-printed open task tree (for CLI, debugging, dashboards).
+        """
+        return self.task_manager.format_open_task_tree()
 
     # ------------- Higher-level views -------------
 
@@ -278,6 +497,153 @@ class CompanyBrain:
         text = self.llm.complete(system_prompt, user_prompt)
         return text
 
+    # ------------- Internal: auto virtual org from KPIs -------------
+
+    def _auto_virtual_reorg_on_kpi(
+        self,
+        metric_name: str,
+        kpi_result: Dict[str, Any],
+    ) -> None:
+        """
+        When a KPI is out of range, auto-create/scale virtual staff for the relevant domain.
+
+        This is deliberately opinionated but simple. You can expand the mapping over time.
+        """
+        name_lower = metric_name.lower()
+        alerts = kpi_result.get("alerts_triggered", 0)
+        decisions = kpi_result.get("alert_decisions", [])
+        decision_text = "\n\n".join(decisions) if isinstance(decisions, list) else str(decisions)
+
+        roles_to_ensure: List[Dict[str, Any]] = []
+
+        # --- Growth / Revenue style KPIs ---
+        if "mrr" in name_lower or "online revenue" in name_lower or "monthly revenue" in name_lower:
+            roles_to_ensure.append(
+                {
+                    "role": "Virtual Growth Marketer",
+                    "owner_kpi": metric_name,
+                    "min_slots": 20,
+                    "notes": f"Auto-created due to {metric_name} alert.",
+                }
+            )
+
+        if "mau" in name_lower or "weekly active users" in name_lower:
+            roles_to_ensure.append(
+                {
+                    "role": "Virtual Growth PM",
+                    "owner_kpi": metric_name,
+                    "min_slots": 15,
+                    "notes": f"Focus on activation and engagement for {metric_name}.",
+                }
+            )
+
+        if "closed deals" in name_lower or "gmv" in name_lower or "lead-to-client" in name_lower:
+            roles_to_ensure.append(
+                {
+                    "role": "Virtual SDR",
+                    "owner_kpi": metric_name,
+                    "min_slots": 25,
+                    "notes": f"Increase pipeline and follow-ups because {metric_name} is below target.",
+                }
+            )
+            roles_to_ensure.append(
+                {
+                    "role": "Virtual Sales Closer",
+                    "owner_kpi": metric_name,
+                    "min_slots": 15,
+                    "notes": f"Improve closing rate because {metric_name} is below target.",
+                }
+            )
+
+        if "manned hours" in name_lower or "placements" in name_lower:
+            roles_to_ensure.append(
+                {
+                    "role": "Virtual Scheduler",
+                    "owner_kpi": metric_name,
+                    "min_slots": 20,
+                    "notes": f"Optimize rota / staffing for {metric_name}.",
+                }
+            )
+
+        # --- Retention / Support style KPIs ---
+        if "retention" in name_lower or "repeat purchase" in name_lower or "churn" in name_lower:
+            roles_to_ensure.append(
+                {
+                    "role": "Virtual Customer Success Manager",
+                    "owner_kpi": metric_name,
+                    "min_slots": 15,
+                    "notes": f"Retention-focused virtual staff, triggered by {metric_name} alert.",
+                }
+            )
+
+        if "on-time delivery" in name_lower:
+            roles_to_ensure.append(
+                {
+                    "role": "Virtual Operations Coordinator",
+                    "owner_kpi": metric_name,
+                    "min_slots": 10,
+                    "notes": f"Improve logistics and delivery performance for {metric_name}.",
+                }
+            )
+
+        # --- R&D / Cost / R&D budget ---
+        if "prototype milestones" in name_lower or "trl" in name_lower:
+            roles_to_ensure.append(
+                {
+                    "role": "Virtual R&D Project Manager",
+                    "owner_kpi": metric_name,
+                    "min_slots": 10,
+                    "notes": f"Coordinate R&D milestones due to {metric_name} alert.",
+                }
+            )
+
+        if "cost per unit" in name_lower or "r&d spend vs budget" in name_lower:
+            roles_to_ensure.append(
+                {
+                    "role": "Virtual Cost Controller",
+                    "owner_kpi": metric_name,
+                    "min_slots": 8,
+                    "notes": f"Control manufacturing / R&D costs due to {metric_name} alert.",
+                }
+            )
+
+        if not roles_to_ensure:
+            # Nothing mapped for this KPI – do nothing.
+            return
+
+        hires_summaries: List[str] = []
+        for r in roles_to_ensure:
+            try:
+                cap_res = self.virtual_staff.ensure_capacity_for_role(
+                    role=r["role"],
+                    owner_kpi=r["owner_kpi"],
+                    min_task_slots=r["min_slots"],
+                    notes=r["notes"],
+                    log_reason=f"KPI '{metric_name}' out of range. Decisions:\n{decision_text}",
+                )
+                created = cap_res.get("created", False)
+                ve = cap_res.get("employee")
+                if ve:
+                    status = "HIRED" if created else "REUSED"
+                    hires_summaries.append(
+                        f"{status} virtual staff: {ve.role} (id={ve.id}) "
+                        f"for KPI '{metric_name}' with min_slots={r['min_slots']}"
+                    )
+            except Exception:
+                # Never allow failures here to crash KPI handling
+                continue
+
+        if hires_summaries:
+            summary_text = "\n".join(hires_summaries)
+            try:
+                self.memory.record_decision(
+                    text=f"[Virtual Org Adjustment] KPI '{metric_name}' out of range.\n"
+                         f"Auto-virtual-org actions:\n{summary_text}",
+                    context={"type": "virtual_org_adjustment", "metric_name": metric_name},
+                )
+            except Exception:
+                pass
+
     # ------------- Factory -------------
 
     @classmethod
@@ -288,40 +654,14 @@ class CompanyBrain:
     ) -> "CompanyBrain":
         profile, kpis = load_company_profile_from_config(config_path, company_key)
         llm = OpenAILLM(model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
-        return cls(company_profile=profile, llm=llm, kpi_thresholds=kpis)
+        return cls(
+            company_profile=profile,
+            llm=llm,
+            kpi_thresholds=kpis,
+            company_id=company_key,
+        )
 
 
 # Convenience for other modules (e.g. Slack server later)
 def create_default_brain() -> CompanyBrain:
     return CompanyBrain.from_config()
-
-
-# ------------------------------------------------------------
-# Demo run
-# ------------------------------------------------------------
-if __name__ == "__main__":
-    brain = create_default_brain()
-
-    print("\n=== DAILY PLAN ===")
-    plan = brain.plan_day()
-    print(plan)
-
-    print("\n=== KPI UPDATES ===")
-    sample_values = {
-        "MRR": 140000.0,
-        "MAU": 42000.0,
-    }
-    for metric, value in sample_values.items():
-        kpi_res = brain.record_kpi(metric, value, "auto", "manual")
-        print(f"\n>>> KPI: {metric}")
-        print(kpi_res)
-
-    print("\n=== RUN PENDING TASKS ===")
-    results = brain.run_pending_tasks()
-    print(results)
-
-    print("\n=== SNAPSHOT ===")
-    print(brain.snapshot())
-
-    print("\n=== CEO PERSONAL BRIEFING ===")
-    print(brain.personal_briefing())

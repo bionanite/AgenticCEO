@@ -1,0 +1,59 @@
+{
+  "company_id": "next_ecosystem",
+  "company_name": "Next Ecosystem",
+  "saved_at": "2025-11-19T22:34:12.796147",
+  "employees": [
+    {
+      "id": "5faa039a-83f0-4055-a554-c162b411522d",
+      "role": "Virtual Growth Marketer",
+      "title": "Virtual Growth Marketer",
+      "owner_kpi": "MRR",
+      "department": "Sales",
+      "skills": [
+        "outbound",
+        "inbound",
+        "crm",
+        "follow-ups",
+        "pipeline-management"
+      ],
+      "tools": [
+        "email",
+        "slack",
+        "crm",
+        "log_tool"
+      ],
+      "max_daily_tasks": 20,
+      "created_at": "2025-11-19T22:34:10.314091",
+      "active": true,
+      "notes": "Auto-created due to MRR alert.",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 0
+    },
+    {
+      "id": "dc8a826e-83e5-45ad-aa76-0124b9e66280",
+      "role": "Virtual Growth PM",
+      "title": "Virtual Growth PM",
+      "owner_kpi": "MAU",
+      "department": "Sales",
+      "skills": [
+        "outbound",
+        "inbound",
+        "crm",
+        "follow-ups",
+        "pipeline-management"
+      ],
+      "tools": [
+        "email",
+        "slack",
+        "crm",
+        "log_tool"
+      ],
+      "max_daily_tasks": 15,
+      "created_at": "2025-11-19T22:34:12.796138",
+      "active": true,
+      "notes": "Focus on activation and engagement for MAU.",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 0
+    }
+  ]
+}

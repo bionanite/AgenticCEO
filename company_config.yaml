@@ -1,49 +1,417 @@
 companies:
-  guardianfm:
-    name: "GuardianFM Ltd"
-    industry: "Security & Facilities Management"
-    vision: "Be the most trusted, AI-first security partner in the UK."
-    mission: "Protect people and property with smart, proactive security teams."
-    north_star_metric: "Monthly Total Manned Hours Billable"
-    primary_markets:
-      - "United Kingdom"
-    products_or_services:
-      - "Manned guarding"
-      - "Mobile patrols"
-      - "Key holding"
-      - "Facilities management"
-    team_size: 150
-    website: "https://guardianfm.com"
-    kpis:
-      - name: "MRR"
-        min: 150000
-        max: null
-        unit: "GBP"
-
   next_ecosystem:
     name: "Next Ecosystem"
-    industry: "AI Super App"
-    vision: "Connect people, payments, travel, and commerce in one intelligent chat layer."
-    mission: "Make AI-native experiences the default way people live, work, and transact."
+    industry: "AI Super App / Consumer Tech"
+    vision: "Build the world’s most intelligent super app that lets anyone chat, pay, travel, date, learn, and shop through one AI-native interface."
+    mission: "Connect NextChat, NextFriend, NextPay, NextTravel, NextEat and future apps into a seamless, multilingual, AI-driven experience that saves users time and unlocks new opportunities every day."
     north_star_metric: "Monthly Active Users (MAU)"
     primary_markets:
       - "UAE"
       - "UK"
       - "Global"
     products_or_services:
-      - "NextChat"
-      - "NextFriend"
-      - "NextPay"
-      - "NextTravel"
-      - "NextEat"
-    team_size: 40
-    website: "https://nextsnap.ai"
+      - "NextChat – AI-native super messenger"
+      - "NextFriend – mentorship, networking & dating"
+      - "NextPay – payments & tokenized rewards"
+      - "NextTravel – AI trip planning & bookings"
+      - "NextEat – intelligent food discovery & ordering"
+      - "NextSnap / NextMind integrations"
+    team_size: 25
+    website: https://nextchat.life
+
     kpis:
       - name: "MRR"
-        min: 150000
+        unit: "USD"
+        min: 300000.0
         max: null
-        unit: "GBP"
+
       - name: "MAU"
-        min: 50000
-        max: null
         unit: "users"
+        min: 150000.0
+        max: null
+
+      - name: "New User Activation Rate"
+        unit: "%"
+        min: 55.0
+        max: null
+
+  guardianfm:
+    name: "GuardianFM Ltd"
+    industry: "Security & Facilities Management"
+    vision: "Become the UK’s most trusted, AI-first security and facilities partner."
+    mission: "Provide reliable manned guarding, mobile patrols, and facilities services enhanced by AI-driven scheduling, reporting, and risk intelligence."
+    north_star_metric: "Monthly Total Manned Hours Billable"
+    primary_markets:
+      - "UK"
+    products_or_services:
+      - "Manned guarding"
+      - "Mobile patrols"
+      - "Key holding & alarm response"
+      - "Facilities management"
+    team_size: 120
+    website: https://guardianfm.co.uk
+
+    kpis:
+      - name: "Monthly Total Manned Hours Billable"
+        unit: "hours"
+        min: 70000.0
+        max: null
+
+      - name: "MRR"
+        unit: "GBP"
+        min: 250000.0
+        max: null
+
+      - name: "Client Retention Rate"
+        unit: "%"
+        min: 93.0
+        max: null
+
+  servionsoft:
+    name: "ServionSoft"
+    industry: "IT Staff Augmentation & Engineering Services"
+    vision: "Be the go-to AI-driven engineering partner for companies building ambitious software products."
+    mission: "Provide world-class engineers and AI talent on-demand, with transparent performance, utilization, and delivery."
+    north_star_metric: "Billable Engineers on Active Assignments"
+    primary_markets:
+      - "UAE"
+      - "UK"
+      - "Global"
+    products_or_services:
+      - "IT staff augmentation"
+      - "AI / software development squads"
+      - "Consulting on AI architectures and products"
+    team_size: 60
+    website: https://servionsoft.com
+
+    kpis:
+      - name: "Billable Engineers"
+        unit: "engineers"
+        min: 300.0
+        max: null
+
+      - name: "Monthly Recurring Revenue"
+        unit: "USD"
+        min: 400000.0
+        max: null
+
+      - name: "Average Utilization Rate"
+        unit: "%"
+        min: 88.0
+        max: null
+
+  nexarise:
+    name: "NextArise Estate"
+    industry: "Real Estate Brokerage & Investments"
+    vision: "Become the most data-driven, AI-powered real estate agency in Dubai for investors and end users."
+    mission: "Help clients find, evaluate, and close Dubai property deals using AI valuation, smart search, and high-touch advisory."
+    north_star_metric: "Monthly Closed Deals (Units)"
+    primary_markets:
+      - "UAE"
+      - "UK investors"
+    products_or_services:
+      - "Real estate brokerage (Dubai)"
+      - "Investor advisory & deal structuring"
+      - "AI-driven property valuation and scouting"
+    team_size: 20
+    website: https://nextariseestate.com
+
+    kpis:
+      - name: "Monthly Closed Deals"
+        unit: "deals"
+        min: 30.0
+        max: null
+
+      - name: "Monthly GMV of Property Sales"
+        unit: "AED"
+        min: 60000000.0
+        max: null
+
+      - name: "Lead-to-Client Conversion Rate"
+        unit: "%"
+        min: 12.0
+        max: null
+
+  hayaat_life_sciences:
+    name: "Hayaat Life Sciences"
+    industry: "Skincare & Life Sciences"
+    vision: "Build a science-backed skincare and life-sciences brand trusted across South Asia and the Middle East."
+    mission: "Develop and distribute clinically inspired skincare products with transparent formulations and real-world results."
+    north_star_metric: "Monthly Revenue"
+    primary_markets:
+      - "Pakistan"
+      - "Middle East"
+    products_or_services:
+      - "Dermatologist-inspired skincare products"
+      - "Treatment-focused routines"
+      - "Clinic and retail partnerships"
+    team_size: 30
+    website: null
+
+    kpis:
+      - name: "Monthly Revenue"
+        unit: "PKR"
+        min: 60000000.0
+        max: null
+
+      - name: "Gross Margin"
+        unit: "%"
+        min: 55.0
+        max: null
+
+      - name: "Repeat Purchase Rate"
+        unit: "%"
+        min: 45.0
+        max: null
+
+  nutracene:
+    name: "Nutracene"
+    industry: "Supplements & Nutraceuticals (E-commerce)"
+    vision: "Become the most trusted, high-performance supplement brand for busy professionals."
+    mission: "Deliver clean, effective formulas with transparent science and bold, memorable branding."
+    north_star_metric: "Active Subscribers"
+    primary_markets:
+      - "UK"
+      - "EU"
+    products_or_services:
+      - "Stress & focus supplements"
+      - "Male vitality & performance stack"
+      - "Subscription-based wellness programs"
+    team_size: 10
+    website: https://nutracene.co.uk
+
+    kpis:
+      - name: "Active Subscribers"
+        unit: "customers"
+        min: 10000.0
+        max: null
+
+      - name: "MRR"
+        unit: "GBP"
+        min: 250000.0
+        max: null
+
+      - name: "LTV:CAC Ratio"
+        unit: "ratio"
+        min: 4.0
+        max: null
+
+  ceres:
+    name: "Ceres Skincare"
+    industry: "Premium Skincare / Beauty"
+    vision: "Create a clinically proven luxury skincare brand that can stand beside global icons like La Mer."
+    mission: "Design professional-grade formulations that deliver visible results while feeling indulgent and aspirational."
+    north_star_metric: "Monthly Online Revenue"
+    primary_markets:
+      - "UK"
+      - "UAE"
+    products_or_services:
+      - "Cleansers and foams"
+      - "Brightening serums and creams"
+      - "Sunscreens and protection products"
+    team_size: 15
+    website: https://ceresderma.co
+
+    kpis:
+      - name: "Monthly Online Revenue"
+        unit: "GBP"
+        min: 300000.0
+        max: null
+
+      - name: "Average Order Value"
+        unit: "GBP"
+        min: 120.0
+        max: null
+
+      - name: "Product Return Rate"
+        unit: "%"
+        min: null
+        max: 4.0
+
+  fleur_de_dubai:
+    name: "Fleur de Dubai"
+    industry: "Gifting / Flowers & Experiences"
+    vision: "Be Dubai’s most romantic and reliable floral gifting brand."
+    mission: "Deliver beautifully curated bouquets and experiences, on time, every time, with a premium service feel."
+    north_star_metric: "Monthly Orders"
+    primary_markets:
+      - "UAE"
+    products_or_services:
+      - "Flower bouquets"
+      - "Occasion-based gifting"
+      - "B2B hotel & event arrangements"
+    team_size: 12
+    website: null
+
+    kpis:
+      - name: "Monthly Orders"
+        unit: "orders"
+        min: 2000.0
+        max: null
+
+      - name: "Average Order Value"
+        unit: "AED"
+        min: 300.0
+        max: null
+
+      - name: "On-Time Delivery Rate"
+        unit: "%"
+        min: 97.0
+        max: null
+
+  airport_staffing:
+    name: "Airport-Staffing.com"
+    industry: "Aviation Staffing & Recruitment"
+    vision: "Become the leading digital platform for aviation workforce solutions worldwide."
+    mission: "Match airports and airlines with pre-vetted staff quickly, transparently, and at scale."
+    north_star_metric: "Active Placements"
+    primary_markets:
+      - "UK"
+      - "EU"
+      - "Middle East"
+    products_or_services:
+      - "Airport staffing portal"
+      - "Permanent and temporary recruitment"
+      - "Managed staffing solutions"
+    team_size: 15
+    website: null
+
+    kpis:
+      - name: "Active Placements"
+        unit: "staff"
+        min: 900.0
+        max: null
+
+      - name: "Monthly Revenue"
+        unit: "GBP"
+        min: 300000.0
+        max: null
+
+      - name: "Client Retention Rate"
+        unit: "%"
+        min: 92.0
+        max: null
+
+  cloutx:
+    name: "CloutX"
+    industry: "Web3 Airdrop & Growth Platform"
+    vision: "Make token and NFT airdrops the most powerful, transparent growth lever for Web3 projects."
+    mission: "Provide no-code tools to launch, track, and optimize large-scale airdrop campaigns on Base and other chains."
+    north_star_metric: "Campaigns Run per Month"
+    primary_markets:
+      - "Global Web3 projects"
+    products_or_services:
+      - "Airdrop campaign launcher"
+      - "Analytics & fraud detection"
+      - "Viral reward logic engine"
+    team_size: 6
+    website: null
+
+    kpis:
+      - name: "Campaigns Run per Month"
+        unit: "campaigns"
+        min: 200.0
+        max: null
+
+      - name: "Daily Active Wallets"
+        unit: "wallets"
+        min: 50000.0
+        max: null
+
+      - name: "Platform Revenue"
+        unit: "USD"
+        min: 200000.0
+        max: null
+
+  nextcool:
+    name: "NextCool™"
+    industry: "Hardware R&D / Kitchen Cooling"
+    vision: "Turn waste cooking heat into self-powered, efficient kitchen cooling systems."
+    mission: "Develop thermoacoustic-based cooling solutions that are affordable, reliable, and eco-friendly."
+    north_star_metric: "Prototype Milestones Achieved"
+    primary_markets:
+      - "Pakistan"
+      - "Global OEM partners"
+    products_or_services:
+      - "NextCool™ prototype systems"
+      - "Licensing & OEM partnerships"
+    team_size: 8
+    website: null
+
+    kpis:
+      - name: "Prototype Milestones Achieved"
+        unit: "milestones"
+        min: 8.0
+        max: null
+
+      - name: "Estimated Cost per Unit at 10k Volume"
+        unit: "PKR"
+        min: null
+        max: 9000.0
+
+      - name: "R&D Spend vs Budget"
+        unit: "%"
+        min: null
+        max: 105.0
+
+  nextshisha:
+    name: "NextShisha"
+    industry: "Wellness-focused Smart Shisha (R&D)"
+    vision: "Reinvent shisha as a safer, smart, wellness-integrated experience."
+    mission: "Develop cleaner vapor systems with smart tracking, limits, and health insights."
+    north_star_metric: "Prototype Readiness Level"
+    primary_markets:
+      - "UAE"
+      - "Global (future)"
+    products_or_services:
+      - "Smart shisha device design"
+      - "App-based control & monitoring"
+    team_size: 5
+    website: null
+
+    kpis:
+      - name: "Prototype Readiness Level"
+        unit: "TRL"
+        min: 8.0
+        max: null
+
+      - name: "Regulatory Approvals / Clearances"
+        unit: "count"
+        min: 2.0
+        max: null
+
+      - name: "User Testers Enrolled"
+        unit: "testers"
+        min: 300.0
+        max: null
+
+  nextmind:
+    name: "NextMind™"
+    industry: "AI Desktop Assistant / Second Brain"
+    vision: "Give every knowledge worker a tireless AI chief-of-staff watching their screen and helping in real time."
+    mission: "Capture on-screen activity, audio, and context to automate documentation, reminders, and suggestions."
+    north_star_metric: "Weekly Active Users (WAU)"
+    primary_markets:
+      - "Global"
+    products_or_services:
+      - "NextMind desktop assistant"
+      - "Memory & retrieval engine"
+      - "Automation suggestions & workflows"
+    team_size: 10
+    website: null
+
+    kpis:
+      - name: "Weekly Active Users"
+        unit: "users"
+        min: 50000.0
+        max: null
+
+      - name: "Daily Tasks Captured per User"
+        unit: "tasks"
+        min: 25.0
+        max: null
+
+      - name: "Monthly Churn Rate"
+        unit: "%"
+        min: null
+        max: 4.0

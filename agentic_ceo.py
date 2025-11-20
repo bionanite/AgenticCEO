@@ -1,15 +1,3 @@
-"""
-agentic_ceo.py
-
-Core Agentic CEO engine with:
-- Master schema for Agentic CEO
-- Rich CEOTask model (priority, area, suggested_owner)
-- Tool interface + example LogTool
-- LLM interface (pluggable, e.g. OpenAILLM)
-- AgenticCEO class (plan → decide → act loop)
-- Persistent MemoryEngine integration (ceo_memory.json)
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -183,11 +171,23 @@ class AgenticCEO:
         """
         Ask the LLM for a daily plan based on company profile + current state.
         Also parse the TASKS section into CEOTask objects.
+
+        IMPORTANT: Tasks must follow the bracketed meta format so they can be routed:
+          1. [growth, Virtual Growth Marketer, P1] Title – description
         """
         system_prompt = (
             "You are an Agentic CEO for a company. "
             "You think in clear, actionable steps, and you always align tasks "
-            "with the company's north-star metric."
+            "with the company's north-star metric.\n\n"
+            "When you output tasks, you MUST use this exact format so they can be parsed:\n"
+            "TASKS:\n"
+            "1. [area, OWNER, P1] Title – description\n"
+            "2. [area, OWNER, P2] Title – description\n"
+            "Where:\n"
+            "- area = growth | marketing | sales | ops | product | finance | cx | data | tech, etc.\n"
+            "- OWNER can be a human role (Head of Sales, COO) or a virtual role "
+            "like 'Virtual Growth Marketer', 'Virtual SDR', 'Virtual Customer Success Manager'.\n"
+            "- P1..P5 = priority (P1 highest).\n"
         )
         user_prompt = (
             f"Company: {self.company.name}\n"
@@ -204,9 +204,9 @@ class AgenticCEO:
             "PLAN:\n"
             "- ...\n\n"
             "TASKS:\n"
-            "1. ...\n"
-            "2. ...\n"
-            "3. ...\n"
+            "1. [area, OWNER, P1] Title – description\n"
+            "2. [area, OWNER, P2] Title – description\n"
+            "3. [area, OWNER, P3] Title – description\n"
         )
 
         plan_text = self.llm.complete(system_prompt, user_prompt)
@@ -237,7 +237,12 @@ class AgenticCEO:
         """
         system_prompt = (
             "You are an Agentic CEO. An event has occurred. "
-            "Decide what to do in 1–3 tasks that align with the company's north star."
+            "Decide what to do in 1–3 tasks that align with the company's north star.\n\n"
+            "When you output tasks, you MUST use this exact format so they can be parsed:\n"
+            "TASKS:\n"
+            "1. [area, OWNER, P1] Title – description\n"
+            "2. [area, OWNER, P2] Title – description\n"
+            "3. [area, OWNER, P3] Title – description\n"
         )
         user_prompt = (
             f"Company: {self.company.name}\n"
@@ -249,7 +254,8 @@ class AgenticCEO:
             "- short explanation\n\n"
             "TASKS:\n"
             "1. [area, OWNER, P1] task title – short description\n"
-            "2. ...\n"
+            "2. [area, OWNER, P2] task title – short description\n"
+            "3. [area, OWNER, P3] task title – short description\n"
         )
 
         response = self.llm.complete(system_prompt, user_prompt)
@@ -328,8 +334,11 @@ class AgenticCEO:
 
         Expected formats under a 'TASKS:' heading:
 
-          1. Do something important
-          2. [growth, CRO, P1] Run campaign – description
+          1. [area, OWNER, P1] Do something important – description
+          2. [growth, Virtual SDR, P1] Run campaign – description
+
+        Also handles cases where the metadata is at the END of the line:
+          1. Do something important – description [area, OWNER, P1]
 
         - Optional metadata in [...] gives area, suggested_owner, priority.
         """
@@ -358,6 +367,7 @@ class AgenticCEO:
                 suggested_owner = "CEO-Agent"
                 priority = 3
 
+                # Case 1: metadata at the start: "[area, OWNER, P1] Title – desc"
                 if content.startswith("["):
                     closing = content.find("]")
                     if closing != -1:
@@ -372,22 +382,53 @@ class AgenticCEO:
                             suggested_owner = meta_parts[1]
 
                         if len(meta_parts) >= 3 and meta_parts[2]:
-                            # Expect formats like "P1", "P2", etc.
                             pr = meta_parts[2].upper()
                             if pr.startswith("P"):
                                 try:
                                     priority = int(pr[1:])
                                 except ValueError:
                                     priority = 3
+                else:
+                    # Case 2: metadata at the END: "Title – desc [area, OWNER, P1]"
+                    if content.endswith("]") and "[" in content:
+                        last_open = content.rfind("[")
+                        if last_open != -1 and last_open < len(content) - 1:
+                            meta_block = content[last_open + 1 : -1]
+                            content = content[:last_open].strip()
+                            meta_parts = [p.strip() for p in meta_block.split(",")]
+
+                            if len(meta_parts) >= 1 and meta_parts[0]:
+                                area = meta_parts[0].lower()
+
+                            if len(meta_parts) >= 2 and meta_parts[1]:
+                                suggested_owner = meta_parts[1]
+
+                            if len(meta_parts) >= 3 and meta_parts[2]:
+                                pr = meta_parts[2].upper()
+                                if pr.startswith("P"):
+                                    try:
+                                        priority = int(pr[1:])
+                                    except ValueError:
+                                        priority = 3
 
                 # ---------- Split title / description ----------
-                # Split on "–" (en dash) first, then "-" as fallback
-                parts = content.split("–", 1)
-                if len(parts) == 1:
-                    parts = content.split("-", 1)
+                # Prefer en dash or " - " with spaces; avoid splitting on hyphens inside words.
+                title = content
+                desc = content
 
-                title = parts[0].strip()
-                desc = parts[1].strip() if len(parts) > 1 else title
+                if " – " in content:
+                    parts = content.split(" – ", 1)
+                    title = parts[0].strip()
+                    desc = parts[1].strip()
+                elif " - " in content:
+                    parts = content.split(" - ", 1)
+                    title = parts[0].strip()
+                    desc = parts[1].strip()
+                else:
+                    # No clear separator; keep full content as title & desc
+                    title = content.strip()
+                    desc = title
+
                 lower_title = title.lower()
 
                 # Default routing: log_tool
