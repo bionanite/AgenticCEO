@@ -11,22 +11,10 @@ Commands (interactive prompt):
   - brief      → Get personal CEO briefing (what the human CEO should do today)
   - snapshot   → High-level daily snapshot
   - tasks      → Show open task tree (parent/child)
-  - vstaff     → Show basic virtual staff info (placeholder for now)
+  - vstaff     → Show basic virtual staff info
   - run        → Run all pending tasks (delegation + virtual staff)
   - help       → Show commands
   - quit/exit  → Leave CLI
-
-You can control which company + mode via CLI flags or environment:
-
-  AGENTIC_CEO_CONFIG  → path to company_config.yaml (default: company_config.yaml)
-  AGENTIC_CEO_COMPANY → key under companies: (default: next_ecosystem)
-  AGENTIC_CEO_MODE    → auto | approval | dry_run (default: auto)
-
-Examples:
-
-  python ceo_cli.py
-  python ceo_cli.py --company guardianfm
-  python ceo_cli.py --company servionsoft --mode approval
 """
 
 from __future__ import annotations
@@ -35,44 +23,80 @@ import argparse
 import json
 import os
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+from urllib import request, error as urlerror
 
 from company_brain import CompanyBrain
-
-# ------------------------------------------------------------
-# CLI helpers
-# ------------------------------------------------------------
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Agentic CEO CLI for any company defined in company_config.yaml"
-    )
-
-    parser.add_argument(
-        "--config",
-        default=os.getenv("AGENTIC_CEO_CONFIG", "company_config.yaml"),
-        help="Path to company_config.yaml (default: env AGENTIC_CEO_CONFIG or company_config.yaml)",
-    )
-    parser.add_argument(
-        "--company",
-        default=os.getenv("AGENTIC_CEO_COMPANY", "next_ecosystem"),
-        help="Company key under `companies:` in YAML (default: env AGENTIC_CEO_COMPANY or 'next_ecosystem')",
-    )
-    parser.add_argument(
-        "--mode",
-        choices=["auto", "approval", "dry_run"],
-        default=os.getenv("AGENTIC_CEO_MODE", "auto"),
-        help="Execution mode: auto | approval | dry_run (default: env AGENTIC_CEO_MODE or 'auto')",
-    )
-
-    return parser.parse_args()
+from agentic_ceo import MCPClient
 
 
 # ------------------------------------------------------------
-# Command implementations
+# Simple HTTP MCP client (optional)
 # ------------------------------------------------------------
 
+class SimpleHTTPMCPClient:
+    """
+    Minimal HTTP-based MCP client.
+
+    Expects an MCP server that exposes tools at:
+        POST {base_url}/tools/{tool_name}
+    with JSON body:
+        {"args": {...}}
+
+    The response should be JSON. On any failure, we return a structured
+    error instead of raising.
+    """
+
+    def __init__(self, base_url: str) -> None:
+        self.base_url = base_url.rstrip("/")
+
+    def call_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        url = f"{self.base_url}/tools/{tool_name}"
+        payload = json.dumps({"args": args}).encode("utf-8")
+        headers = {
+            "Content-Type": "application/json",
+        }
+        req = request.Request(url, data=payload, headers=headers, method="POST")
+        try:
+            with request.urlopen(req, timeout=30) as resp:
+                body = resp.read().decode("utf-8") or "{}"
+                try:
+                    data = json.loads(body)
+                except json.JSONDecodeError:
+                    return {
+                        "ok": False,
+                        "tool": tool_name,
+                        "error": "Invalid JSON returned from MCP server",
+                        "raw": body,
+                    }
+                # If server didn't include ok, assume success
+                if isinstance(data, dict) and "ok" not in data:
+                    data["ok"] = True
+                data.setdefault("tool", tool_name)
+                return data
+        except urlerror.HTTPError as e:
+            return {
+                "ok": False,
+                "tool": tool_name,
+                "error": f"HTTPError {e.code}: {e.reason}",
+            }
+        except urlerror.URLError as e:
+            return {
+                "ok": False,
+                "tool": tool_name,
+                "error": f"URLError: {e.reason}",
+            }
+        except Exception as e:
+            return {
+                "ok": False,
+                "tool": tool_name,
+                "error": str(e),
+            }
+
+
+# ------------------------------------------------------------
+# Command helpers
+# ------------------------------------------------------------
 
 def cmd_plan(brain: CompanyBrain) -> None:
     print("\n=== DAILY PLAN ===")
@@ -210,24 +234,66 @@ def print_help() -> None:
 # Main
 # ------------------------------------------------------------
 
+def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Agentic CEO CLI")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=os.getenv("AGENTIC_CEO_CONFIG", "company_config.yaml"),
+        help="Path to company_config.yaml (default: env AGENTIC_CEO_CONFIG or company_config.yaml)",
+    )
+    parser.add_argument(
+        "--company",
+        type=str,
+        default=os.getenv("AGENTIC_CEO_COMPANY", "next_ecosystem"),
+        help="Company key from YAML (default: env AGENTIC_CEO_COMPANY or next_ecosystem)",
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["auto", "approval", "dry_run"],
+        default=os.getenv("AGENTIC_CEO_MODE", "auto"),
+        help="Execution mode: auto | approval | dry_run (default: env AGENTIC_CEO_MODE or auto)",
+    )
+    return parser.parse_args(argv)
+
+
+def build_mcp_client_from_env() -> Optional[MCPClient]:
+    base_url = os.getenv("MCP_BASE_URL", "").strip()
+    if not base_url:
+        return None
+    return SimpleHTTPMCPClient(base_url=base_url)
+
 
 def main() -> None:
     args = parse_args()
+
+    mcp_client = build_mcp_client_from_env()
 
     try:
         brain = CompanyBrain.from_config(
             config_path=args.config,
             company_key=args.company,
             execution_mode=args.mode,
+            mcp_client=mcp_client,
         )
     except Exception as e:
-        print(f"Failed to initialize CompanyBrain: {e}")
+        print(f"Error creating CompanyBrain: {e}")
         sys.exit(1)
+
+    company_name = getattr(brain, "company_profile", None)
+    if company_name is not None:
+        company_display = f"{args.company} ({brain.company_profile.name})"
+    else:
+        company_display = args.company
+
+    mcp_status = os.getenv("MCP_BASE_URL", "").strip() or "disabled"
 
     print("Agentic CEO CLI")
     print(f"- Config:  {args.config}")
-    print(f"- Company: {args.company} ({brain.company_profile.name})")
+    print(f"- Company: {company_display}")
     print(f"- Mode:    {args.mode}")
+    print(f"- MCP:     {mcp_status}")
     print("Type 'help' to see available commands.\n")
 
     while True:

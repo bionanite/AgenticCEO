@@ -415,3 +415,69 @@ companies:
         unit: "%"
         min: null
         max: 4.0
+  
+  remapp:
+    name: "Remapp"
+    industry: "Real Estate Matchmaking Platform"
+    vision: "Connect buyers, sellers, brokers, and developers instantly through AI-driven real estate matchmaking."
+    mission: "Use intelligent scoring, matchmaking, and verified developer inventory to help buyers, brokers, and developers close more off-plan and ready property deals, faster and with more trust."
+    north_star_metric: "Qualified Matches per Month"
+    primary_markets:
+      - "UAE"
+      - "GCC"
+    products_or_services:
+      - "AI property matchmaking for buyers and agents"
+      - "Buyer–seller and buyer–broker matching"
+      - "Off-plan developer project integration"
+      - "Developer-to-broker inventory distribution"
+      - "Agent & broker performance scoring"
+      - "Smart viewing and follow-up scheduling"
+      - "Property recommendation engine"
+
+    team_size: 8
+    website: "https://remapp.ae"
+
+    kpis:
+      # Core matchmaking KPI (north star)
+      - name: "Qualified Matches"
+        min: 2000
+        max: 10000
+        unit: "matches"
+
+      # Supply-side: developers & projects
+      - name: "Active Developers"
+        min: 15
+        max: 700
+        unit: "developers"
+
+      - name: "Live Off-plan Projects"
+        min: 50
+        max: 1000
+        unit: "projects"
+
+      # Distribution to brokers
+      - name: "Active Brokers"
+        min: 300
+        max: 10000
+        unit: "brokers"
+
+      - name: "Broker Engagement Rate"
+        min: 30
+        max: 90
+        unit: "%"
+
+      # Funnel performance
+      - name: "Buyer Leads"
+        min: 1000
+        max: 15000
+        unit: "leads"
+
+      - name: "Match-to-Viewing Rate"
+        min: 25
+        max: 80
+        unit: "%"
+
+      - name: "Viewing-to-Deal Conversion"
+        min: 3
+        max: 15
+        unit: "%"
