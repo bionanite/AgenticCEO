@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CEO Dashboard - Task Approval</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #1a1a1a;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .company-info {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .stat-card h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #666;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #1a1a1a;
+        }
+
+        .stat-card.pending .value {
+            color: #f59e0b;
+        }
+
+        .stat-card.approved .value {
+            color: #10b981;
+        }
+
+        .section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .section h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #1a1a1a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 10px;
+        }
+
+        .task-list {
+            list-style: none;
+        }
+
+        .task-item {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.2s;
+        }
+
+        .task-item:hover {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-color: #d1d5db;
+        }
+
+        .task-item.pending-approval {
+            border-left: 4px solid #f59e0b;
+            background: #fffbeb;
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .task-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 4px;
+        }
+
+        .task-meta {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.priority-p1 { background: #fee2e2; color: #991b1b; }
+        .badge.priority-p2 { background: #fef3c7; color: #92400e; }
+        .badge.priority-p3 { background: #dbeafe; color: #1e40af; }
+        .badge.priority-p4 { background: #e5e7eb; color: #374151; }
+        .badge.priority-p5 { background: #f3f4f6; color: #6b7280; }
+
+        .badge.area { background: #e0e7ff; color: #3730a3; }
+        .badge.status-todo { background: #dbeafe; color: #1e40af; }
+        .badge.status-in-progress { background: #fef3c7; color: #92400e; }
+        .badge.status-blocked { background: #fee2e2; color: #991b1b; }
+        .badge.status-done { background: #d1fae5; color: #065f46; }
+
+        .task-description {
+            color: #666;
+            margin: 12px 0;
+            line-height: 1.5;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-approve {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-approve:hover:not(:disabled) {
+            background: #059669;
+        }
+
+        .btn-reject {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-reject:hover:not(:disabled) {
+            background: #dc2626;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .success {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .task-header {
+                flex-direction: column;
+            }
+
+            .task-actions {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 id="company-name">CEO Dashboard</h1>
+            <div class="company-info">
+                <span id="company-date">Loading...</span> | 
+                <span id="focus-theme">Loading...</span>
+            </div>
+        </header>
+
+        <div class="stats">
+            <div class="stat-card pending">
+                <h3>Pending Approval</h3>
+                <div class="value" id="pending-count">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Tasks</h3>
+                <div class="value" id="total-count">0</div>
+            </div>
+            <div class="stat-card approved">
+                <h3>Approved Today</h3>
+                <div class="value" id="approved-count">0</div>
+            </div>
+        </div>
+
+        <div id="message-area"></div>
+
+        <div class="section">
+            <h2>Tasks Requiring Approval</h2>
+            <div id="pending-tasks">
+                <div class="loading">Loading tasks...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>All Tasks</h2>
+            <div id="all-tasks">
+                <div class="loading">Loading tasks...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+
+        // Utility functions
+        function showMessage(text, type = 'success') {
+            const area = document.getElementById('message-area');
+            const className = type === 'error' ? 'error' : 'success';
+            area.innerHTML = `<div class="${className}">${text}</div>`;
+            setTimeout(() => {
+                area.innerHTML = '';
+            }, 5000);
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+
+        function renderTask(task, showActions = false) {
+            const pendingClass = task.requires_approval && !task.approved ? 'pending-approval' : '';
+            const statusClass = `status-${task.status}`;
+            
+            return `
+                <li class="task-item ${pendingClass}">
+                    <div class="task-header">
+                        <div>
+                            <div class="task-title">${escapeHtml(task.title)}</div>
+                            <div class="task-meta">
+                                <span class="badge priority-p${task.priority}">P${task.priority}</span>
+                                <span class="badge area">${escapeHtml(task.area)}</span>
+                                <span class="badge ${statusClass}">${escapeHtml(task.status)}</span>
+                                <span>Owner: ${escapeHtml(task.suggested_owner || task.owner)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="task-description">${escapeHtml(task.description || 'No description')}</div>
+                    ${showActions && task.requires_approval && !task.approved ? `
+                        <div class="task-actions">
+                            <button class="btn-approve" onclick="approveTask('${task.id}')">Approve</button>
+                            <button class="btn-reject" onclick="rejectTask('${task.id}')">Reject</button>
+                        </div>
+                    ` : ''}
+                </li>
+            `;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // API calls
+        async function loadCompanyInfo() {
+            try {
+                const response = await fetch(`${API_BASE}/company`);
+                const data = await response.json();
+                document.getElementById('company-name').textContent = `${data.name} - CEO Dashboard`;
+                document.getElementById('company-date').textContent = formatDate(data.date);
+                document.getElementById('focus-theme').textContent = data.focus_theme || 'No focus theme';
+            } catch (error) {
+                console.error('Error loading company info:', error);
+            }
+        }
+
+        async function loadPendingTasks() {
+            try {
+                const response = await fetch(`${API_BASE}/tasks/pending-approval`);
+                const data = await response.json();
+                
+                document.getElementById('pending-count').textContent = data.count || 0;
+                
+                const container = document.getElementById('pending-tasks');
+                if (data.tasks && data.tasks.length > 0) {
+                    container.innerHTML = `
+                        <ul class="task-list">
+                            ${data.tasks.map(t => renderTask(t, true)).join('')}
+                        </ul>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <h3>No tasks pending approval</h3>
+                            <p>All tasks are approved or none require approval.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('pending-tasks').innerHTML = 
+                    `<div class="error">Error loading pending tasks: ${error.message}</div>`;
+            }
+        }
+
+        async function loadAllTasks() {
+            try {
+                const response = await fetch(`${API_BASE}/tasks`);
+                const data = await response.json();
+                
+                document.getElementById('total-count').textContent = data.total || 0;
+                
+                // Count approved tasks
+                const approvedCount = data.tasks.filter(t => t.approved).length;
+                document.getElementById('approved-count').textContent = approvedCount;
+                
+                const container = document.getElementById('all-tasks');
+                if (data.tasks && data.tasks.length > 0) {
+                    container.innerHTML = `
+                        <ul class="task-list">
+                            ${data.tasks.map(t => renderTask(t, false)).join('')}
+                        </ul>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <h3>No tasks</h3>
+                            <p>No tasks have been created yet.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('all-tasks').innerHTML = 
+                    `<div class="error">Error loading tasks: ${error.message}</div>`;
+            }
+        }
+
+        async function approveTask(taskId) {
+            try {
+                const response = await fetch(`${API_BASE}/tasks/${taskId}/approve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to approve task');
+                }
+                
+                const data = await response.json();
+                showMessage(data.message || 'Task approved successfully', 'success');
+                
+                // Reload tasks
+                await Promise.all([loadPendingTasks(), loadAllTasks()]);
+            } catch (error) {
+                showMessage(`Error approving task: ${error.message}`, 'error');
+            }
+        }
+
+        async function rejectTask(taskId) {
+            const reason = prompt('Reason for rejection (optional):') || '';
+            
+            try {
+                const response = await fetch(`${API_BASE}/tasks/${taskId}/reject`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_id: taskId, reason }),
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to reject task');
+                }
+                
+                const data = await response.json();
+                showMessage(data.message || 'Task rejected', 'success');
+                
+                // Reload tasks
+                await Promise.all([loadPendingTasks(), loadAllTasks()]);
+            } catch (error) {
+                showMessage(`Error rejecting task: ${error.message}`, 'error');
+            }
+        }
+
+        // Initialize dashboard
+        async function init() {
+            await loadCompanyInfo();
+            await Promise.all([loadPendingTasks(), loadAllTasks()]);
+            
+            // Auto-refresh every 30 seconds
+            setInterval(async () => {
+                await Promise.all([loadPendingTasks(), loadAllTasks()]);
+            }, 30000);
+        }
+
+        // Start when page loads
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
+

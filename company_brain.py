@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import yaml
 from dotenv import load_dotenv
 
-from agentic_ceo import AgenticCEO, CompanyProfile, CEOEvent, LogTool
+from agentic_ceo import AgenticCEO, CompanyProfile, CEOEvent, LogTool, CEOTask
 from memory_engine import MemoryEngine
 from kpi_engine import KPIEngine, KPIThreshold
 from llm_openai import OpenAILLM, LLMClient
@@ -490,6 +490,26 @@ class CompanyBrain:
         """
         return self.task_manager.format_open_task_tree()
 
+    def get_tasks_requiring_approval(self) -> List[CEOTask]:
+        """
+        Get all tasks that need CEO approval.
+        
+        Returns tasks where requires_approval=True and approved=False and status != "done".
+        """
+        return [
+            t for t in self.ceo.state.tasks
+            if t.requires_approval and not t.approved and t.status != "done"
+        ]
+
+    def approve_task(self, task_id: str) -> bool:
+        """
+        Approve a task so it can run in approval mode.
+        
+        Wrapper around AgenticCEO.approve_task().
+        Returns True if task was found and approved.
+        """
+        return self.ceo.approve_task(task_id)
+
     # ------------- Higher-level views -------------
 
     def snapshot(self) -> str:
@@ -684,20 +704,110 @@ class CompanyBrain:
 
     # ------------- Factory -------------
 
+        # ------------- Factory -------------
+
+    # ------------- Factory -------------
+    def get_dashboard_state(self) -> Dict[str, Any]:
+        """
+        Structured snapshot for dashboards / APIs.
+
+        Returns:
+            {
+              "company": {...},
+              "snapshot": "text",
+              "tasks": [...],
+              "vstaff": {...} | None,
+              "kpis": {...} | None,
+            }
+        """
+        # Basic company info
+        company_info = {
+            "id": self.company_id,
+            "name": self.company_profile.name,
+            "industry": getattr(self.company_profile, "industry", ""),
+            "north_star_metric": getattr(self.company_profile, "north_star_metric", ""),
+            "primary_markets": getattr(self.company_profile, "primary_markets", []),
+        }
+
+        # Snapshot text (uses MemoryEngine + open tasks)
+        snapshot_text = self.snapshot()
+
+        # Tasks (flattened for UI)
+        tasks: List[Dict[str, Any]] = []
+        for t in getattr(self.ceo.state, "tasks", []):
+            tasks.append(
+                {
+                    "id": getattr(t, "id", None),
+                    "title": getattr(t, "title", ""),
+                    "area": getattr(t, "area", None),
+                    "priority": getattr(t, "priority", None),
+                    "suggested_owner": getattr(t, "suggested_owner", None),
+                    "status": getattr(t, "status", None),
+                    "requires_approval": getattr(t, "requires_approval", False),
+                    "approved": getattr(t, "approved", False),
+                }
+            )
+
+        # Virtual staff summary (if VirtualStaffManager exposes anything)
+        vstaff_summary = None
+        try:
+            if hasattr(self.virtual_staff, "summarize"):
+                vstaff_summary = self.virtual_staff.summarize()
+            elif hasattr(self.virtual_staff, "to_dict"):
+                vstaff_summary = self.virtual_staff.to_dict()
+        except Exception:
+            vstaff_summary = None
+
+        # KPI summary (if KPIEngine exposes anything)
+        kpi_summary = None
+        try:
+            if hasattr(self.kpi_engine, "summarize"):
+                kpi_summary = self.kpi_engine.summarize()
+            elif hasattr(self.kpi_engine, "to_dict"):
+                kpi_summary = self.kpi_engine.to_dict()
+        except Exception:
+            kpi_summary = None
+
+        return {
+            "company": company_info,
+            "snapshot": snapshot_text,
+            "tasks": tasks,
+            "vstaff": vstaff_summary,
+            "kpis": kpi_summary,
+        }
     @classmethod
     def from_config(
         cls,
         config_path: str = DEFAULT_CONFIG_PATH,
         company_key: str = DEFAULT_COMPANY_KEY,
+        execution_mode: str = "auto",
+        mcp_client=None,
     ) -> "CompanyBrain":
+        """
+        Factory: build a CompanyBrain from YAML config.
+
+        `execution_mode` is accepted so CLI tools can pass:
+        - "auto"      → run tasks directly
+        - "approval"  → require CEO approval first
+        - "dry_run"   → plan only, don't execute
+
+        `mcp_client` is optional and used by CLI for tool calls.
+        """
         profile, kpis = load_company_profile_from_config(config_path, company_key)
         llm = OpenAILLM(model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"))
-        return cls(
+
+        brain = cls(
             company_profile=profile,
             llm=llm,
             kpi_thresholds=kpis,
             company_id=company_key,
         )
+
+        # Store execution preferences
+        brain.execution_mode = execution_mode
+        brain.mcp_client = mcp_client
+
+        return brain
 
 
 # Convenience for other modules (e.g. Slack server later)
