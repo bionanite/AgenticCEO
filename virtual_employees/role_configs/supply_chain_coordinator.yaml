@@ -1,0 +1,34 @@
+role_id: supply_chain_coordinator
+title: Supply Chain Coordinator
+department: Operations
+seniority: IC
+description: You manage inventory, coordinate with suppliers, and ensure smooth logistics
+  to meet demand while optimizing costs and reducing waste.
+core_responsibilities: '- Forecast demand and plan inventory levels.
+
+  - Coordinate with suppliers on orders, deliveries, and quality.
+
+  - Track inventory levels and manage stockouts and overstock.
+
+  - Optimize logistics and shipping costs.
+
+  - Monitor supplier performance and manage relationships.
+
+  '
+style_guidelines: '- Be proactive in identifying and solving supply chain issues.
+
+  - Use data to forecast accurately and optimize inventory.
+
+  - Communicate clearly with suppliers and internal teams.
+
+  - Document all orders, deliveries, and issues.
+
+  - Balance cost optimization with service levels.
+
+  '
+kpi_focus: inventory turnover, stockout rate, supplier on-time delivery, logistics cost
+default_channels:
+- erp_system
+- supplier_portals
+- email
+- reports

@@ -1,0 +1,154 @@
+{
+  "company_id": "nexarise",
+  "company_name": "NextArise Estate",
+  "saved_at": "2025-11-21T06:38:42.429027",
+  "employees": [
+    {
+      "id": "d338652c-8bd7-4e03-b887-27a7cb4c041d",
+      "role": "Virtual SDR",
+      "title": "Virtual SDR",
+      "owner_kpi": null,
+      "department": "Sales",
+      "skills": [
+        "outbound",
+        "inbound",
+        "crm",
+        "follow-ups",
+        "pipeline-management"
+      ],
+      "tools": [
+        "email",
+        "slack",
+        "crm",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:37:57.338032",
+      "active": true,
+      "notes": "Auto-created/used for task: Lead Generation Campaign",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "6d07087e-81d2-4b59-afbc-46b36dc7d164",
+      "role": "Virtual Data Analyst",
+      "title": "Virtual Data Analyst",
+      "owner_kpi": null,
+      "department": "Technology",
+      "skills": [
+        "architecture",
+        "backlog",
+        "review",
+        "experiments"
+      ],
+      "tools": [
+        "slack",
+        "notion",
+        "github",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:37:57.375679",
+      "active": true,
+      "notes": "Auto-created/used for task: AI Valuation Model Review",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "0ae6f67b-c2a7-4783-ade2-b511616b5994",
+      "role": "Virtual Sales Account Executive",
+      "title": "Virtual Sales Account Executive",
+      "owner_kpi": null,
+      "department": "Sales",
+      "skills": [
+        "outbound",
+        "inbound",
+        "crm",
+        "follow-ups",
+        "pipeline-management"
+      ],
+      "tools": [
+        "email",
+        "slack",
+        "crm",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:38:11.411924",
+      "active": true,
+      "notes": "Auto-created/used for task: High-Value Lead Follow-Up",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "7bc6c2d5-375a-48ca-a7ed-98491ba468b6",
+      "role": "Virtual Finance Manager",
+      "title": "Virtual Finance Manager",
+      "owner_kpi": null,
+      "department": "Finance",
+      "skills": [
+        "cashflow",
+        "invoicing",
+        "forecasting"
+      ],
+      "tools": [
+        "sheets",
+        "email",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:38:20.932812",
+      "active": true,
+      "notes": "Auto-created/used for task: Investor Advisory Content",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "f784e584-eb96-411a-8864-bdb3840627af",
+      "role": "Virtual Finance Manager",
+      "title": "Virtual Finance Manager",
+      "owner_kpi": null,
+      "department": "Finance",
+      "skills": [
+        "cashflow",
+        "invoicing",
+        "forecasting"
+      ],
+      "tools": [
+        "sheets",
+        "email",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:38:32.147942",
+      "active": true,
+      "notes": "Auto-created/used for task: Sales Process Optimization",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "4a09074f-d45f-4cd8-ba11-7a687dfda82a",
+      "role": "Virtual Product Manager",
+      "title": "Virtual Product Manager",
+      "owner_kpi": null,
+      "department": "Product",
+      "skills": [
+        "roadmap",
+        "spec-writing",
+        "user-research",
+        "prioritisation"
+      ],
+      "tools": [
+        "notion",
+        "slack",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:38:42.416075",
+      "active": true,
+      "notes": "Auto-created/used for task: Smart Search Feature Enhancement",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    }
+  ]
+}

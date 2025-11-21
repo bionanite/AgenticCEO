@@ -13,6 +13,8 @@ from llm_openai import OpenAILLM, LLMClient
 from agents import CROAgent, COOAgent, CTOAgent
 from virtual_staff_manager import VirtualStaffManager
 from task_manager import TaskManager
+from virtual_employees.registry import load_role_configs
+from virtual_employees.base import BaseVirtualEmployee, VirtualEmployeeConfig
 
 load_dotenv()
 
@@ -140,6 +142,9 @@ class CompanyBrain:
             storage_dir=os.getenv("AGENTIC_STATE_DIR", ".agentic_state"),
         )
 
+        # Load virtual employee role configs from YAML files
+        self._ve_role_configs: Dict[str, VirtualEmployeeConfig] = load_role_configs()
+
     # ------------- Core wiring -------------
 
     def plan_day(self) -> str:
@@ -186,9 +191,100 @@ class CompanyBrain:
         event = CEOEvent(type=event_type, payload=payload)
         return self.ceo.ingest_event(event)
 
+    # ------------- Virtual Employee Helpers -------------
+
+    def _normalize_role_to_role_id(self, role_name: str) -> Optional[str]:
+        """
+        Normalize a role name (e.g. "Virtual Social Media Manager") to a YAML role_id
+        (e.g. "social_media_manager").
+        
+        Handles multiple formats:
+        - "Virtual X" -> "x" (lowercase, underscores)
+        - Direct role_id matching
+        - Partial matches (e.g. "social media" -> "social_media_manager")
+        """
+        role_lower = role_name.lower().strip()
+        
+        # Remove "virtual" prefix if present
+        if role_lower.startswith("virtual "):
+            role_lower = role_lower[8:].strip()
+        
+        # Direct match first
+        if role_lower in self._ve_role_configs:
+            return role_lower
+        
+        # Try converting "Virtual Social Media Manager" -> "social_media_manager"
+        # Replace spaces with underscores, remove common words
+        normalized = role_lower.replace(" ", "_").replace("-", "_")
+        if normalized in self._ve_role_configs:
+            return normalized
+        
+        # Try partial matching - find role_ids that contain key words
+        # e.g. "social media" -> "social_media_manager"
+        key_words = [w for w in role_lower.split() if len(w) > 3]  # Skip short words
+        
+        for role_id, config in self._ve_role_configs.items():
+            # Check if role_id contains any key words
+            if any(word in role_id for word in key_words):
+                return role_id
+            
+            # Check if title contains key words
+            title_lower = config.title.lower()
+            if any(word in title_lower for word in key_words):
+                return role_id
+        
+        return None
+
+    def _get_ve_agent_for_role(self, role_id: str) -> Optional[BaseVirtualEmployee]:
+        """
+        Get or create a BaseVirtualEmployee agent for the given role_id.
+        """
+        config = self._ve_role_configs.get(role_id)
+        if config is None:
+            return None
+        
+        return BaseVirtualEmployee(
+            config=config,
+            llm=self.llm,
+            company_context=self._get_company_context(),
+            memory=self.memory,
+        )
+
+    def _has_virtual_employee_assignment(self, task) -> bool:
+        """
+        Check if task has an explicit virtual employee assignment.
+        Returns True if suggested_owner contains 'Virtual' or matches a VE role_id directly.
+        
+        This is stricter than normalization - only matches explicit VE assignments,
+        not human titles that could be normalized to VE roles.
+        """
+        owner = (task.suggested_owner or "").strip()
+        if not owner:
+            return False
+        
+        owner_lower = owner.lower()
+        
+        # Check if it explicitly contains "virtual" prefix
+        if "virtual" in owner_lower:
+            return True
+        
+        # Check if it's a direct role_id match (underscore format like "content_writer")
+        # This catches direct role_id assignments without "Virtual" prefix
+        if owner in self._ve_role_configs:
+            return True
+        
+        # Check if it's a direct match after normalizing spaces/formatting
+        # but only if it's clearly a role_id format (no spaces, or underscore-separated)
+        normalized = owner_lower.replace(" ", "_").replace("-", "_")
+        if normalized in self._ve_role_configs:
+            return True
+        
+        return False
+
     # ------------- Delegation helpers -------------
 
     def _build_company_context(self) -> str:
+        """Build company context string for virtual employees."""
         company = self.ceo.company
         markets = ", ".join(company.primary_markets) or "N/A"
         products = ", ".join(company.products_or_services) or "N/A"
@@ -200,6 +296,12 @@ class CompanyBrain:
             f"Primary markets: {markets}. "
             f"Key products/services: {products}."
         )
+
+    def _get_company_context(self) -> str:
+        """Get company context string (cached)."""
+        if not hasattr(self, '_company_context_cache'):
+            self._company_context_cache = self._build_company_context()
+        return self._company_context_cache
 
     def delegate_to_cro(self, instruction: str, extra_context: str = "") -> str:
         if not self.cro_agent:
@@ -268,9 +370,15 @@ class CompanyBrain:
 
     def _maybe_route_task_to_virtual_staff(self, task) -> Optional[Dict[str, Any]]:
         """
+        Route task to virtual employee if suggested_owner matches a virtual role.
+
+        This method is called:
+        1. FIRST when task has explicit virtual employee assignment
+        2. As fallback for implicit role matching
+
         If the task's suggested_owner looks like a virtual role
         (e.g. 'Virtual SDR', 'Virtual Social Media Manager'),
-        ensure capacity and mark the task as assigned to a virtual employee.
+        ensure capacity and execute via BaseVirtualEmployee with YAML configs.
 
         Additionally, we normalize certain human-style role titles
         (e.g. 'Head of Product') into the closest virtual role so that
@@ -286,36 +394,54 @@ class CompanyBrain:
         # ---- Normalize common human titles → virtual roles ----
         # This lets you keep prompts natural (Head of Product, CMO, etc.)
         # while still driving work through the virtual org.
-        human_to_virtual = {
-            "head of product": "Virtual Product Manager",
-            "product manager": "Virtual Product Manager",
-            "product lead": "Virtual Product Manager",
-            "head of growth": "Virtual Growth Marketer",
-            "growth lead": "Virtual Growth Marketer",
-            "growth manager": "Virtual Growth Marketer",
-            "head of sales": "Virtual Sales Account Exec",
-            "sales manager": "Virtual Sales Account Exec",
-            "account executive": "Virtual Sales Account Exec",
-            "sales account exec": "Virtual Sales Account Exec",
-            "head of ops": "Virtual Ops Manager",
-            "operations lead": "Virtual Ops Manager",
-            "operations manager": "Virtual Ops Manager",
-            "head of operations": "Virtual Ops Manager",
-            "head of hr": "Virtual HR Manager",
-            "hr manager": "Virtual HR Manager",
-            "talent lead": "Virtual HR Manager",
-            "head of marketing": "Virtual Social Media Manager",
-            "marketing manager": "Virtual Social Media Manager",
-            "social media": "Virtual Social Media Manager",
-        }
-
-        for human_label, virtual_role in human_to_virtual.items():
-            if human_label in owner_lower:
-                owner = virtual_role
-                owner_lower = owner.lower()
-                # Also update the task so the new role is visible downstream
+        # First try to find matching YAML role_id
+        role_id = self._normalize_role_to_role_id(owner)
+        if role_id:
+            # Found a matching YAML config, use it
+            config = self._ve_role_configs.get(role_id)
+            if config:
+                # Update owner to ensure it has "Virtual" prefix for consistency
+                # Keep the original format if it already has "Virtual", otherwise add it
+                if not owner_lower.startswith("virtual"):
+                    owner = f"Virtual {config.title}"
+                else:
+                    owner = config.title if config.title.startswith("Virtual") else f"Virtual {config.title}"
                 task.suggested_owner = owner
-                break
+                owner_lower = owner.lower()
+        else:
+            # Fallback to hard-coded mapping for common roles
+            human_to_virtual = {
+                "head of product": "Virtual Product Manager",
+                "product manager": "Virtual Product Manager",
+                "product lead": "Virtual Product Manager",
+                "head of growth": "Virtual Growth Marketer",
+                "growth lead": "Virtual Growth Marketer",
+                "growth manager": "Virtual Growth Marketer",
+                "head of sales": "Virtual Sales Account Exec",
+                "sales manager": "Virtual Sales Account Exec",
+                "account executive": "Virtual Sales Account Exec",
+                "sales account exec": "Virtual Sales Account Exec",
+                "head of ops": "Virtual Ops Manager",
+                "operations lead": "Virtual Ops Manager",
+                "operations manager": "Virtual Ops Manager",
+                "head of operations": "Virtual Ops Manager",
+                "head of hr": "Virtual HR Manager",
+                "hr manager": "Virtual HR Manager",
+                "talent lead": "Virtual HR Manager",
+                "head of marketing": "Virtual Social Media Manager",
+                "marketing manager": "Virtual Social Media Manager",
+                "social media": "Virtual Social Media Manager",
+            }
+
+            for human_label, virtual_role in human_to_virtual.items():
+                if human_label in owner_lower:
+                    owner = virtual_role
+                    owner_lower = owner.lower()
+                    # Also update the task so the new role is visible downstream
+                    task.suggested_owner = owner
+                    # Re-normalize after updating owner
+                    role_id = self._normalize_role_to_role_id(owner)
+                    break
 
         # Heuristic: anything that contains 'virtual' is treated as a virtual role
         if "virtual" not in owner_lower:
@@ -342,16 +468,60 @@ class CompanyBrain:
             task_payload={"area": task.area, "priority": task.priority},
         )
 
-        # Still let the CEO run the task (e.g. using log_tool or future tools)
-        run_res = self.ceo.run_task(task)
+        # Try to execute task using BaseVirtualEmployee with YAML config
+        # (role_id was already computed above during normalization)
+        ve_agent = None
+        execution_result = None
+        
+        if role_id:
+            ve_agent = self._get_ve_agent_for_role(role_id)
+            if ve_agent:
+                try:
+                    # Execute task using the virtual employee agent
+                    output = ve_agent.run_task(task)
+                    execution_result = {
+                        "status": "done",
+                        "executed_by": "BaseVirtualEmployee",
+                        "role_id": role_id,
+                        "role_title": ve_agent.title,
+                        "output": output,
+                    }
+                    task.status = "done"
+                except Exception as e:
+                    # Fallback to CEO execution if VE execution fails
+                    execution_result = {
+                        "status": "error",
+                        "error": str(e),
+                        "fallback": "ceo.run_task",
+                    }
+                    run_res = self.ceo.run_task(task)
+                    execution_result["ceo_result"] = run_res
+            else:
+                # No matching config found, fallback to CEO
+                run_res = self.ceo.run_task(task)
+                execution_result = {
+                    "status": "done",
+                    "executed_by": "ceo.run_task",
+                    "reason": f"No YAML config found for role_id: {role_id}",
+                    "ceo_result": run_res,
+                }
+        else:
+            # Could not normalize role name, fallback to CEO
+            run_res = self.ceo.run_task(task)
+            execution_result = {
+                "status": "done",
+                "executed_by": "ceo.run_task",
+                "reason": f"Could not normalize role name: {owner}",
+                "ceo_result": run_res,
+            }
 
         return {
-            "status": "done",
+            "status": execution_result.get("status", "done"),
             "virtual_employee_id": ve.id,
             "virtual_role": ve.role,
             "capacity_before": cap_res.get("capacity_before"),
             "capacity_after": cap_res.get("capacity_after"),
-            "ceo_result": run_res,
+            "execution": execution_result,
         }
 
     def run_pending_tasks(self) -> List[Dict[str, Any]]:
@@ -359,27 +529,35 @@ class CompanyBrain:
         Run all not-done tasks.
 
         Order:
-        - Try to route to CRO/COO/CTO based on area.
-        - Then try to route to Virtual Staff based on suggested_owner.
-        - If no mapping, fall back to AgenticCEO.run_task() (log_tool/manual).
+        - First: Check if task has explicit virtual employee assignment → route to VE
+        - Second: Try to route to CRO/COO/CTO based on area (if no VE assignment)
+        - Third: Try virtual staff routing for implicit matches
+        - Fallback: AgenticCEO.run_task() (log_tool/manual).
         """
         results: List[Dict[str, Any]] = []
 
         for t in list(self.ceo.state.tasks):
             if t.status != "done":
-                # 1) CRO / COO / CTO delegation
+                # 1) Virtual staff routing FIRST (if explicitly assigned)
+                if self._has_virtual_employee_assignment(t):
+                    v_res = self._maybe_route_task_to_virtual_staff(t)
+                    if v_res is not None:
+                        results.append({"task": t.title, "result": v_res})
+                        continue
+                
+                # 2) CRO / COO / CTO delegation (if no VE assignment)
                 delegated = self._maybe_delegate_task_to_agent(t)
                 if delegated is not None:
                     results.append({"task": t.title, "result": delegated})
                     continue
 
-                # 2) Virtual staff routing based on suggested_owner
+                # 3) Virtual staff routing (fallback for implicit matches)
                 v_res = self._maybe_route_task_to_virtual_staff(t)
                 if v_res is not None:
                     results.append({"task": t.title, "result": v_res})
                     continue
 
-                # 3) Fallback: CEO's own tool routing (log_tool, etc.)
+                # 4) Fallback: CEO's own tool routing (log_tool, etc.)
                 res = self.ceo.run_task(t)
                 results.append({"task": t.title, "result": res})
 

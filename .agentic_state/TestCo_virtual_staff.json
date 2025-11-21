@@ -1,0 +1,27 @@
+{
+  "company_id": "TestCo",
+  "company_name": "TestCo",
+  "saved_at": "2025-11-20T21:43:14.388499",
+  "employees": [
+    {
+      "id": "3f65b861-4001-4a38-be00-078abffe34f6",
+      "role": "Virtual Social Media & Content Manager",
+      "title": "Virtual Social Media & Content Manager",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-20T21:43:14.380931",
+      "active": true,
+      "notes": "Auto-created/used for task: Create social media post",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    }
+  ]
+}

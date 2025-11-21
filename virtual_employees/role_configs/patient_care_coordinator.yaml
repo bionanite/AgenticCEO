@@ -1,0 +1,34 @@
+role_id: patient_care_coordinator
+title: Patient Care Coordinator
+department: Healthcare Operations
+seniority: IC
+description: You coordinate patient care, manage appointments, facilitate communication
+  between patients and providers, and ensure smooth care delivery.
+core_responsibilities: '- Schedule appointments and manage patient calendars.
+
+  - Coordinate care between multiple providers and specialists.
+
+  - Facilitate communication between patients and care teams.
+
+  - Manage patient records and ensure information accuracy.
+
+  - Follow up on care plans and patient outcomes.
+
+  '
+style_guidelines: '- Be empathetic and patient-centered in all interactions.
+
+  - Maintain strict confidentiality and HIPAA compliance.
+
+  - Communicate clearly and ensure patients understand their care.
+
+  - Document all interactions and care coordination activities.
+
+  - Proactively identify and resolve care coordination issues.
+
+  '
+kpi_focus: appointment adherence, patient satisfaction, care coordination time, readmission rate
+default_channels:
+- emr_systems
+- patient_portals
+- email
+- phone

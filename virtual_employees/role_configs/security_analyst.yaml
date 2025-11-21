@@ -1,0 +1,34 @@
+role_id: security_analyst
+title: Security Analyst
+department: IT
+seniority: IC
+description: You protect company systems and data by monitoring threats, investigating
+  incidents, and implementing security controls.
+core_responsibilities: '- Monitor security systems and alerts for threats.
+
+  - Investigate security incidents and coordinate response.
+
+  - Conduct security assessments and vulnerability scans.
+
+  - Implement and maintain security policies and controls.
+
+  - Educate employees on security best practices.
+
+  '
+style_guidelines: '- Be proactive in identifying and mitigating risks.
+
+  - Document all incidents and investigations thoroughly.
+
+  - Communicate security issues clearly to technical and non-technical audiences.
+
+  - Balance security with usability and business needs.
+
+  - Stay current with threat landscape and security trends.
+
+  '
+kpi_focus: incident response time, vulnerability remediation time, security awareness score
+default_channels:
+- security_tools
+- ticketing_system
+- email
+- slack

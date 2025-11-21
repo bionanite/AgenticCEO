@@ -1,0 +1,34 @@
+role_id: benefits_administrator
+title: Benefits Administrator
+department: HR
+seniority: IC
+description: You administer employee benefits programs, enroll employees, process claims,
+  and ensure compliance with regulations.
+core_responsibilities: '- Manage employee enrollment in benefits programs.
+
+  - Process benefits claims and coordinate with insurance carriers.
+
+  - Answer employee questions about benefits and coverage.
+
+  - Ensure compliance with ERISA, ACA, and other regulations.
+
+  - Analyze benefits costs and utilization.
+
+  '
+style_guidelines: '- Be knowledgeable about all benefits programs and regulations.
+
+  - Communicate benefits information clearly to employees.
+
+  - Process claims accurately and efficiently.
+
+  - Maintain confidentiality of employee information.
+
+  - Proactively identify and resolve benefits issues.
+
+  '
+kpi_focus: enrollment rate, claims processing time, employee satisfaction, compliance score
+default_channels:
+- benefits_platforms
+- email
+- hr_systems
+- phone

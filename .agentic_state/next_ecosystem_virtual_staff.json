@@ -1,7 +1,7 @@
 {
   "company_id": "next_ecosystem",
   "company_name": "Next Ecosystem",
-  "saved_at": "2025-11-19T22:34:12.796147",
+  "saved_at": "2025-11-21T06:56:51.064454",
   "employees": [
     {
       "id": "5faa039a-83f0-4055-a554-c162b411522d",
@@ -54,6 +54,255 @@
       "notes": "Focus on activation and engagement for MAU.",
       "performance_score": 1.0,
       "tasks_assigned_today": 0
+    },
+    {
+      "id": "aecf184d-2d15-4c4e-9276-494892188dd3",
+      "role": "Virtual Finance Manager",
+      "title": "Virtual Finance Manager",
+      "owner_kpi": null,
+      "department": "Finance",
+      "skills": [
+        "cashflow",
+        "invoicing",
+        "forecasting"
+      ],
+      "tools": [
+        "sheets",
+        "email",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:27:47.272232",
+      "active": true,
+      "notes": "Auto-created/used for task: Launch UAE and UK targeted user acquisition campaigns",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 4
+    },
+    {
+      "id": "57933eff-f30d-40f4-a424-e4e43b6fc508",
+      "role": "Virtual Product Manager",
+      "title": "Virtual Product Manager",
+      "owner_kpi": null,
+      "department": "Product",
+      "skills": [
+        "roadmap",
+        "spec-writing",
+        "user-research",
+        "prioritisation"
+      ],
+      "tools": [
+        "notion",
+        "slack",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:28:01.112507",
+      "active": true,
+      "notes": "Auto-created/used for task: Optimize onboarding flows across NextChat, NextFriend, and NextPay",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 2
+    },
+    {
+      "id": "56ddf323-5b99-46c2-8fbb-7a6ac1559e14",
+      "role": "Virtual Data Analyst",
+      "title": "Virtual Data Analyst",
+      "owner_kpi": null,
+      "department": "Technology",
+      "skills": [
+        "architecture",
+        "backlog",
+        "review",
+        "experiments"
+      ],
+      "tools": [
+        "slack",
+        "notion",
+        "github",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:28:17.095280",
+      "active": true,
+      "notes": "Auto-created/used for task: Analyze user engagement and drop-off data",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 2
+    },
+    {
+      "id": "899c8b06-f155-425e-af9b-7d3891754a24",
+      "role": "Virtual Social Media & Content Manager",
+      "title": "Virtual Social Media & Content Manager",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:28:28.744666",
+      "active": true,
+      "notes": "Auto-created/used for task: Develop multilingual content calendar for social channels",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 2
+    },
+    {
+      "id": "3a2c1b24-dcfe-4cea-b213-ecf9eb892cb3",
+      "role": "Virtual Translation Specialist",
+      "title": "Virtual Translation Specialist",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:28:50.249218",
+      "active": true,
+      "notes": "Auto-created/used for task: Collect and summarize user feedback from UAE and UK markets",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "2e86c18e-5e41-4b88-b9ef-3b23a2f4ceec",
+      "role": "Virtual Finance Manager",
+      "title": "Virtual Finance Manager",
+      "owner_kpi": null,
+      "department": "Finance",
+      "skills": [
+        "cashflow",
+        "invoicing",
+        "forecasting"
+      ],
+      "tools": [
+        "sheets",
+        "email",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:31:50.158350",
+      "active": true,
+      "notes": "Auto-created/used for task: Launch UAE and UK targeted digital ad campaigns",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "c7ebfa0b-6cf9-4b96-9c1f-e257497029d0",
+      "role": "Virtual Product Manager",
+      "title": "Virtual Product Manager",
+      "owner_kpi": null,
+      "department": "Product",
+      "skills": [
+        "roadmap",
+        "spec-writing",
+        "user-research",
+        "prioritisation"
+      ],
+      "tools": [
+        "notion",
+        "slack",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:32:01.363718",
+      "active": true,
+      "notes": "Auto-created/used for task: Optimize onboarding flows for NextFriend and NextPay",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "65d9c839-850e-43b3-afb2-661faf95ff8f",
+      "role": "Virtual Data Analyst",
+      "title": "Virtual Data Analyst",
+      "owner_kpi": null,
+      "department": "Technology",
+      "skills": [
+        "architecture",
+        "backlog",
+        "review",
+        "experiments"
+      ],
+      "tools": [
+        "slack",
+        "notion",
+        "github",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:32:15.720532",
+      "active": true,
+      "notes": "Auto-created/used for task: Analyze user engagement and drop-off metrics",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "b4ef9c89-5fba-4afc-9dd3-8900ca509030",
+      "role": "Virtual Social Media & Content Manager",
+      "title": "Virtual Social Media & Content Manager",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:32:24.017848",
+      "active": true,
+      "notes": "Auto-created/used for task: Run influencer and community campaigns in UAE and UK",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "4ad20b96-b465-42a7-9e0a-612aca227400",
+      "role": "Virtual QA Engineer & Test Automation Specialist",
+      "title": "Virtual QA Engineer & Test Automation Specialist",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:32:39.513471",
+      "active": true,
+      "notes": "Auto-created/used for task: Test and report on recent feature updates in NextChat and NextTravel",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "2965f9a7-df4b-4d5d-a93f-a85834b21163",
+      "role": "Virtual Operations Manager",
+      "title": "Virtual Operations Manager",
+      "owner_kpi": null,
+      "department": "Operations",
+      "skills": [
+        "process-design",
+        "sops",
+        "qa",
+        "incident-management"
+      ],
+      "tools": [
+        "notion",
+        "slack",
+        "helpdesk",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T06:56:51.051721",
+      "active": true,
+      "notes": "Auto-created/used for task: Coordinate cross-team sync between product, marketing, and data teams to ensure alignment on MAU growth initiatives and share progress updates.",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
     }
   ]
 }

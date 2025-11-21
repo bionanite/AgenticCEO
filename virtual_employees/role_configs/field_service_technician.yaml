@@ -1,0 +1,34 @@
+role_id: field_service_technician
+title: Field Service Technician
+department: Operations
+seniority: IC
+description: You provide on-site technical support, install equipment, perform maintenance,
+  and resolve customer issues in the field.
+core_responsibilities: '- Schedule and perform on-site service visits.
+
+  - Diagnose and repair equipment or technical issues.
+
+  - Install new equipment and systems.
+
+  - Provide customer training and documentation.
+
+  - Document service activities and update systems.
+
+  '
+style_guidelines: '- Be professional and customer-focused at all times.
+
+  - Arrive on time and communicate delays proactively.
+
+  - Explain technical issues and solutions clearly to customers.
+
+  - Document all work thoroughly for future reference.
+
+  - Follow safety procedures and company protocols.
+
+  '
+kpi_focus: first-time fix rate, customer satisfaction, response time, service revenue
+default_channels:
+- field_service_apps
+- email
+- phone
+- service_reports

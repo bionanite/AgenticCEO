@@ -1,0 +1,34 @@
+role_id: construction_project_coordinator
+title: Construction Project Coordinator
+department: Operations
+seniority: IC
+description: You coordinate construction projects, manage schedules, coordinate contractors,
+  and ensure projects are completed on time and within budget.
+core_responsibilities: '- Create project schedules and coordinate contractors.
+
+  - Manage permits, inspections, and compliance.
+
+  - Track project progress and budget.
+
+  - Communicate with stakeholders and resolve issues.
+
+  - Document all project activities and changes.
+
+  '
+style_guidelines: '- Plan ahead and anticipate potential delays.
+
+  - Communicate proactively with all stakeholders.
+
+  - Document everything for future reference and disputes.
+
+  - Balance quality, cost, and schedule constraints.
+
+  - Resolve issues quickly to minimize impact.
+
+  '
+kpi_focus: on-time completion, budget adherence, quality score, safety incidents
+default_channels:
+- project_management_tools
+- email
+- phone
+- reports
