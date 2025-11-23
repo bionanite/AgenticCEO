@@ -401,6 +401,49 @@ class VirtualStaffManager:
             e.tasks_assigned_today = 0
         self._save_state()
 
+    def summarize(self) -> Dict[str, Any]:
+        """
+        Return a summary of virtual employees for dashboard/API consumption.
+        
+        Returns:
+            {
+                "employees": [
+                    {
+                        "id": str,
+                        "name": str,  # title or role
+                        "role": str,
+                        "department": str | None,
+                        "remaining_slots": int,
+                        "tasks_assigned_today": int,
+                        "max_daily_tasks": int,
+                    },
+                    ...
+                ],
+                "total_employees": int,
+                "active_employees": int,
+            }
+        """
+        active = self.list_active()
+        employees_list = []
+        
+        for e in active:
+            remaining = max(0, e.max_daily_tasks - e.tasks_assigned_today)
+            employees_list.append({
+                "id": e.id,
+                "name": e.title or e.role,
+                "role": e.role,
+                "department": e.department,
+                "remaining_slots": remaining,
+                "tasks_assigned_today": e.tasks_assigned_today,
+                "max_daily_tasks": e.max_daily_tasks,
+            })
+        
+        return {
+            "employees": employees_list,
+            "total_employees": len(self._employees),
+            "active_employees": len(active),
+        }
+
 
 # ------------------------------------------------------------
 # Helper: VirtualEmployeeDashboard

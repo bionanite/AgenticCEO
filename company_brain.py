@@ -366,6 +366,7 @@ class CompanyBrain:
         )
 
         task.status = "done"
+        task.result = str(answer) if answer else "Task completed by C-level agent"
 
         return {"status": "done", "tool": agent_name, "result": answer}
 
@@ -488,6 +489,7 @@ class CompanyBrain:
                         "output": output,
                     }
                     task.status = "done"
+                    task.result = str(output) if output else "Task completed by virtual employee"
                 except Exception as e:
                     # Fallback to CEO execution if VE execution fails
                     execution_result = {

@@ -69,6 +69,9 @@ class CEOTask(BaseModel):
     # Approval flow
     requires_approval: bool = False
     approved: bool = False
+    
+    # Execution result (stored after task completion)
+    result: Optional[str] = None  # The actual output/work product from task execution
 
 
 class CEOEvent(BaseModel):
@@ -499,6 +502,11 @@ class AgenticCEO:
                 return {"status": "error", "tool": tool.name, "result": result}
 
             task.status = "done"
+            # Store result as string for display
+            if isinstance(result, dict):
+                task.result = str(result.get("result", result))
+            else:
+                task.result = str(result)
             return {"status": "done", "tool": tool.name, "result": result}
 
         # No tool, just mark as done and log
@@ -507,6 +515,7 @@ class AgenticCEO:
             context={"type": "manual_task", "task_id": task.id},
         )
         task.status = "done"
+        task.result = "Task completed (no tool execution required)"
         return {"status": "done", "tool": None, "result": {}}
 
     def approve_task(self, task_id: str) -> bool:

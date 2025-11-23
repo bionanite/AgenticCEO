@@ -144,6 +144,7 @@ def build_tasks_payload() -> Dict[str, Any]:
                 "status": getattr(t, "status", "") or "unknown",
                 "requires_approval": bool(getattr(t, "requires_approval", False)),
                 "approved": bool(getattr(t, "approved", False)),
+                "result": getattr(t, "result", None),  # Task execution result/output
             }
         )
 
@@ -323,7 +324,7 @@ def api_approve_task(task_id: str) -> JSONResponse:
 
 
 @app.post("/api/tasks/{task_id}/run")
-def api_run_single_task(task_id: str) -> JSONResponse:
+async def api_run_single_task(task_id: str) -> JSONResponse:
     """
     Run a single task by ID (bypassing run_pending_tasks).
 
@@ -340,28 +341,28 @@ def api_run_single_task(task_id: str) -> JSONResponse:
     if target is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    result = ceo.run_task(target)
+    result = await ceo.run_task(target)
     return JSONResponse({"ok": True, "task_id": task_id, "result": result})
 
 
 @app.post("/api/ceo/plan")
-def api_plan_day() -> JSONResponse:
+async def api_plan_day() -> JSONResponse:
     """
     Ask Agentic CEO to generate a daily plan (tasks will be stored in state).
     """
     brain = get_brain()
-    text = brain.plan_day()
+    text = await brain.plan_day()
     tasks_payload = build_tasks_payload()
     return JSONResponse({"plan": text, "tasks": tasks_payload})
 
 
 @app.post("/api/ceo/run_pending")
-def api_run_pending() -> JSONResponse:
+async def api_run_pending() -> JSONResponse:
     """
     Run all pending tasks (delegation + virtual staff routing).
     """
     brain = get_brain()
-    results = brain.run_pending_tasks()
+    results = await brain.run_pending_tasks()
     # After running, rebuild tasks for UI
     tasks_payload = build_tasks_payload()
     return JSONResponse({"results": results, "tasks": tasks_payload})
@@ -604,7 +605,29 @@ Loading yesterday…
   </section>
 </div>
 
+<!-- Task Result Modal -->
+<div id="resultModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+  <div class="card max-w-3xl w-full max-h-[80vh] flex flex-col">
+    <div class="flex items-center justify-between p-4 border-b border-slate-700">
+      <h3 class="text-lg font-semibold text-slate-100" id="modalTaskTitle">Task Result</h3>
+      <button
+        id="modalClose"
+        class="text-slate-400 hover:text-slate-100 text-xl"
+      >&times;</button>
+    </div>
+    <div class="p-4 overflow-y-auto flex-1">
+      <pre id="modalTaskResult" class="text-xs md:text-sm text-slate-300 bg-slate-900/70 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap"></pre>
+    </div>
+  </div>
+</div>
+
 <script>
+  function escapeHtml(text) {
+    if (!text) return "";
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
   let metricsChart = null;
   let tasksAreaChart = null;
   let refreshInterval = 10;
@@ -740,6 +763,15 @@ Loading yesterday…
               data-id="${t.id}"
               ${t.status !== "done" ? "" : "disabled"}
             >Run</button>
+            ${t.status === "done" && t.result ? `
+            <button
+              class="px-2 py-1 text-[10px] pill border border-purple-500/60 text-purple-200 hover:bg-purple-500/20"
+              data-action="view-result"
+              data-id="${t.id}"
+              data-result-raw="${encodeURIComponent(t.result || "")}"
+              data-title-raw="${encodeURIComponent(t.title || "")}"
+            >View</button>
+            ` : ""}
           </td>
         `;
         tbody.appendChild(row);
@@ -769,10 +801,21 @@ Loading yesterday…
 
         if (action === "approve") {
           await fetch("/api/tasks/" + id + "/approve", { method: "POST" });
+          await fetchTasks();
         } else if (action === "run") {
           await fetch("/api/tasks/" + id + "/run", { method: "POST" });
+          await fetchTasks();
+        } else if (action === "view-result") {
+          const resultRaw = ev.currentTarget.getAttribute("data-result-raw");
+          const titleRaw = ev.currentTarget.getAttribute("data-title-raw");
+          if (resultRaw && titleRaw) {
+            const result = decodeURIComponent(resultRaw);
+            const title = decodeURIComponent(titleRaw);
+            document.getElementById("modalTaskTitle").textContent = title;
+            document.getElementById("modalTaskResult").textContent = result;
+            document.getElementById("resultModal").classList.remove("hidden");
+          }
         }
-        await fetchTasks();
       });
     });
 
@@ -859,6 +902,17 @@ Loading yesterday…
   document.getElementById("btnRunPending").addEventListener("click", async () => {
     await fetch("/api/ceo/run_pending", { method: "POST" });
     await fetchAll();
+  });
+
+  // Modal handlers
+  document.getElementById("modalClose").addEventListener("click", () => {
+    document.getElementById("resultModal").classList.add("hidden");
+  });
+  
+  document.getElementById("resultModal").addEventListener("click", (e) => {
+    if (e.target.id === "resultModal") {
+      document.getElementById("resultModal").classList.add("hidden");
+    }
   });
 
   // Initial load
