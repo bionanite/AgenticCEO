@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import uuid
+import os
+import json
 import datetime as dt
 from typing import Any, Dict, List, Optional, Protocol
 
@@ -252,11 +254,70 @@ class AgenticCEO:
         self.llm = llm
         self.tools: Dict[str, Tool] = tools or {}
         self.memory = memory_engine or MemoryEngine()
-        self.state = CEOState(
+        
+        # Try to load persisted state, otherwise create new
+        self.state = self._load_state() or CEOState(
             focus_theme=f"Grow {company.name} using the north star: {company.north_star_metric}"
         )
+        
         self.mcp_client = mcp_client
         self.execution_mode = execution_mode
+
+    # ------------------------
+    # State Persistence
+    # ------------------------
+
+    def _get_state_filepath(self) -> str:
+        """Get the filepath for persisting CEO state."""
+        import os
+        state_dir = os.getenv("AGENTIC_STATE_DIR", ".agentic_state")
+        os.makedirs(state_dir, exist_ok=True)
+        company_id = getattr(self.company, "name", "default").replace(" ", "_").lower()
+        return os.path.join(state_dir, f"{company_id}_ceo_state.json")
+
+    def _load_state(self) -> Optional[CEOState]:
+        """Load CEO state from disk if it exists."""
+        state_file = self._get_state_filepath()
+        if not os.path.exists(state_file):
+            return None
+        
+        try:
+            with open(state_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                # Convert date string back to date object
+                if "date" in data:
+                    data["date"] = dt.datetime.fromisoformat(data["date"]).date()
+                # Convert task timestamps
+                if "tasks" in data:
+                    for task in data["tasks"]:
+                        if "created_at" in task:
+                            task["created_at"] = dt.datetime.fromisoformat(task["created_at"])
+                        if "updated_at" in task:
+                            task["updated_at"] = dt.datetime.fromisoformat(task["updated_at"])
+                        if "due_date" in task and task["due_date"]:
+                            task["due_date"] = dt.datetime.fromisoformat(task["due_date"]).date()
+                return CEOState(**data)
+        except Exception as e:
+            # If loading fails, return None to create fresh state
+            self.memory.record_decision(
+                text=f"Failed to load CEO state: {e}",
+                context={"type": "state_load_error", "error": str(e)},
+            )
+            return None
+
+    def _save_state(self) -> None:
+        """Save CEO state to disk."""
+        state_file = self._get_state_filepath()
+        try:
+            # Convert state to dict, handling datetime objects
+            state_dict = self.state.model_dump(mode="json")
+            with open(state_file, "w", encoding="utf-8") as f:
+                json.dump(state_dict, f, indent=2, default=str)
+        except Exception as e:
+            self.memory.record_decision(
+                text=f"Failed to save CEO state: {e}",
+                context={"type": "state_save_error", "error": str(e)},
+            )
 
     # ------------------------
     # PUBLIC API
@@ -292,7 +353,7 @@ class AgenticCEO:
         )
         self.tools[name] = mcp_tool
 
-    def plan_day(self) -> str:
+    def plan_day(self, trend_context: Optional[str] = None) -> str:
         """
         Ask the LLM for a daily plan based on company profile + current state.
         Also parse the TASKS section into CEOTask objects.
@@ -323,6 +384,31 @@ class AgenticCEO:
             "Prefer virtual roles whenever the task looks like execution or analysis that\n"
             "could be handled by a smart virtual employee.\n"
         )
+        # Build context about previous tasks and recent actions
+        completed_tasks = [t for t in self.state.tasks if t.status == "done"]
+        recent_decisions = self.memory._memory.get("decisions", [])[-10:]  # Last 10 decisions
+        
+        # Format completed tasks summary
+        completed_summary = ""
+        if completed_tasks:
+            completed_summary = "\n\nRECENTLY COMPLETED TASKS:\n"
+            for task in completed_tasks[-10:]:  # Last 10 completed tasks
+                completed_summary += f"- {task.title} ({task.area}, completed)\n"
+                if task.result:
+                    # Truncate long results
+                    result_preview = task.result[:100] + "..." if len(task.result) > 100 else task.result
+                    completed_summary += f"  Result: {result_preview}\n"
+        else:
+            completed_summary = "\n\nRECENTLY COMPLETED TASKS: None yet.\n"
+        
+        # Format recent decisions summary
+        decisions_summary = ""
+        if recent_decisions:
+            decisions_summary = "\n\nRECENT ACTIONS/DECISIONS:\n"
+            for decision in recent_decisions[-5:]:  # Last 5 decisions
+                decision_text = decision.get("text", "")[:200]  # Truncate long text
+                decisions_summary += f"- {decision_text}\n"
+        
         user_prompt = (
             f"Company: {self.company.name}\n"
             f"Industry: {self.company.industry}\n"
@@ -332,8 +418,14 @@ class AgenticCEO:
             f"Primary Markets: {', '.join(self.company.primary_markets)}\n"
             f"Products/Services: {', '.join(self.company.products_or_services)}\n\n"
             f"Today's date: {self.state.date}\n"
-            f"Current focus: {self.state.focus_theme}\n\n"
+            f"Current focus: {self.state.focus_theme}\n"
+            f"{completed_summary}"
+            f"{decisions_summary}"
+            f"{trend_context or ''}\n"
             "Create a short daily operating plan and 3–7 concrete tasks.\n"
+            "IMPORTANT: Build upon the work already completed. Avoid duplicating tasks that were just finished.\n"
+            "Consider success patterns: If certain approaches or executors have been successful recently, "
+            "prefer similar approaches for new tasks.\n"
             "Use virtual roles for most tasks. Only assign to CRO/COO/CTO/CEO when a\n"
             "decision genuinely requires the real executive.\n\n"
             "Format:\n"
@@ -346,6 +438,11 @@ class AgenticCEO:
         )
 
         plan_text = self.llm.complete(system_prompt, user_prompt)
+
+        # Update state date to today (marks when plan was generated)
+        today = dt.datetime.utcnow().date()
+        if self.state.date != today:
+            self.state.date = today
 
         # Token logging (if llm supports it)
         try:
@@ -367,6 +464,9 @@ class AgenticCEO:
         fake_event = CEOEvent(type="daily_plan", payload={"source": "plan_day"})
         new_tasks = self._parse_tasks(plan_text, fake_event)
         self.state.tasks.extend(new_tasks)
+        
+        # Save state after adding new tasks
+        self._save_state()
 
         return plan_text
 
@@ -426,6 +526,7 @@ class AgenticCEO:
         # Create tasks from numbered lines under 'TASKS:'
         new_tasks = self._parse_tasks(response, event)
         self.state.tasks.extend(new_tasks)
+        self._save_state()  # Save state after adding tasks from event
 
         return response
 
@@ -507,6 +608,7 @@ class AgenticCEO:
                 task.result = str(result.get("result", result))
             else:
                 task.result = str(result)
+            self._save_state()  # Save state after task completion
             return {"status": "done", "tool": tool.name, "result": result}
 
         # No tool, just mark as done and log
@@ -516,6 +618,7 @@ class AgenticCEO:
         )
         task.status = "done"
         task.result = "Task completed (no tool execution required)"
+        self._save_state()  # Save state after task completion
         return {"status": "done", "tool": None, "result": {}}
 
     def approve_task(self, task_id: str) -> bool:

@@ -166,12 +166,17 @@ async def run_autonomous_cycle(
                 await loop.run_in_executor(None, brain.ceo.ingest_event, event)
                 summary["tasks_generated"] += len([t for t in brain.ceo.state.tasks if t.status != "done"])
         
-        # 2. Check if we need to generate daily plan (if no tasks exist)
+        # 2. Check if we need to generate daily plan (if no tasks exist AND it's a new day)
         pending_tasks = [t for t in brain.ceo.state.tasks if t.status != "done"]
-        if not pending_tasks:
-            print(f"[{cycle_start.strftime('%H:%M:%S')}] No tasks found, generating daily plan...")
+        current_date = cycle_start.date()
+        state_date = brain.ceo.state.date
+        
+        if not pending_tasks and current_date > state_date:
+            print(f"[{cycle_start.strftime('%H:%M:%S')}] No tasks found and new day detected ({current_date} > {state_date}), generating daily plan...")
             plan_text = await brain.run_autonomous_cycle()
             summary["tasks_generated"] = len([t for t in brain.ceo.state.tasks if t.status != "done"])
+        elif not pending_tasks:
+            print(f"[{cycle_start.strftime('%H:%M:%S')}] No tasks found, but same day ({current_date}). Waiting for new day or proactive tasks...")
         
         # 3. Run pending tasks
         pending_tasks = [t for t in brain.ceo.state.tasks if t.status != "done"]
