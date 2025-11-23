@@ -31,6 +31,7 @@ class KPIEngine(BaseModel):
     """
 
     thresholds: Dict[str, KPIThreshold] = Field(default_factory=dict)
+    trend_analyzer: Any = None
 
     def register_threshold(self, threshold: KPIThreshold) -> None:
         self.thresholds[threshold.name] = threshold
@@ -38,6 +39,10 @@ class KPIEngine(BaseModel):
     def register_many(self, thresholds: List[KPIThreshold]) -> None:
         for t in thresholds:
             self.register_threshold(t)
+    
+    def set_trend_analyzer(self, analyzer: Any) -> None:
+        """Set the trend analyzer for proactive KPI monitoring."""
+        self.trend_analyzer = analyzer
 
     def record_kpi(
         self,
@@ -76,6 +81,15 @@ class KPIEngine(BaseModel):
                 "timestamp": timestamp.isoformat(),
             },
         )
+        
+        # Record in trend analyzer for proactive monitoring
+        if self.trend_analyzer:
+            self.trend_analyzer.record_kpi(
+                metric_name=metric_name,
+                value=value,
+                unit=unit,
+                timestamp=timestamp,
+            )
 
         threshold = self.thresholds.get(metric_name)
         if not threshold:

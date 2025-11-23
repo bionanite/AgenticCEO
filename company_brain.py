@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from agentic_ceo import AgenticCEO, CompanyProfile, CEOEvent, LogTool, CEOTask
 from memory_engine import MemoryEngine
 from kpi_engine import KPIEngine, KPIThreshold
+from kpi_trend_analyzer import KPITrendAnalyzer
+from learning_engine import LearningEngine
 from llm_openai import OpenAILLM, LLMClient
 from agents import CROAgent, COOAgent, CTOAgent
 from virtual_staff_manager import VirtualStaffManager
@@ -118,9 +120,20 @@ class CompanyBrain:
             memory_engine=self.memory,
         )
 
-        # KPI engine
+        # KPI engine with trend analysis
         self.kpi_engine = KPIEngine()
         self.kpi_engine.register_many(kpi_thresholds)
+        
+        # Initialize trend analyzer for proactive monitoring
+        storage_dir = os.getenv("AGENTIC_STATE_DIR", ".agentic_state")
+        trend_analyzer = KPITrendAnalyzer(storage_dir=storage_dir)
+        self.kpi_engine.set_trend_analyzer(trend_analyzer)
+        
+        # Initialize learning engine for quality assessment and optimization
+        self.learning_engine = LearningEngine(
+            llm_client=self.llm,
+            storage_dir=storage_dir,
+        )
 
         # Specialist agents (CRO / COO / CTO)
         self.cro_agent: Optional[CROAgent] = CROAgent.create(llm)
@@ -150,10 +163,65 @@ class CompanyBrain:
 
     def plan_day(self) -> str:
         """
-        Ask the AgenticCEO for a daily plan.
+        Ask the AgenticCEO for a daily plan with KPI trend context.
         Tasks are stored inside self.ceo.state.tasks.
         """
-        return self.ceo.plan_day()
+        # Get KPI trend analysis for proactive planning
+        trend_context = self._get_kpi_trend_context()
+        
+        # Enhance plan_day with trend context
+        return self.ceo.plan_day(trend_context=trend_context)
+    
+    def _get_kpi_trend_context(self) -> str:
+        """
+        Get KPI trend analysis context for planning.
+        
+        Returns:
+            Formatted string with trend analysis and recommendations
+        """
+        if not self.kpi_engine.trend_analyzer:
+            return ""
+        
+        # Build thresholds dict for trend analyzer
+        kpi_thresholds = {}
+        for name, threshold in self.kpi_engine.thresholds.items():
+            kpi_thresholds[name] = {
+                "min": threshold.min_value,
+                "max": threshold.max_value,
+            }
+        
+        # Get proactive recommendations
+        recommendations = self.kpi_engine.trend_analyzer.get_proactive_recommendations(
+            kpi_thresholds
+        )
+        
+        # Get trends for all KPIs
+        trends = self.kpi_engine.trend_analyzer.get_trends_for_all_kpis(kpi_thresholds)
+        
+        if not trends and not recommendations:
+            return ""
+        
+        context_lines = ["\n\nKPI TREND ANALYSIS:"]
+        
+        # Add trend summaries
+        for trend in trends:
+            if trend.threshold_breach_risk in ("medium", "high", "critical"):
+                context_lines.append(
+                    f"- {trend.metric_name}: {trend.trend_direction} "
+                    f"(current: {trend.current_value:.2f}, "
+                    f"7d avg: {trend.moving_avg_7d:.2f if trend.moving_avg_7d else 'N/A'}, "
+                    f"risk: {trend.threshold_breach_risk})"
+                )
+                if trend.recommendation:
+                    context_lines.append(f"  → {trend.recommendation}")
+        
+        # Add proactive recommendations
+        if recommendations:
+            context_lines.append("\nPROACTIVE RECOMMENDATIONS:")
+            for rec in recommendations:
+                context_lines.append(f"- {rec}")
+        
+        return "\n".join(context_lines)
 
     def record_kpi(
         self,
@@ -367,6 +435,22 @@ class CompanyBrain:
 
         task.status = "done"
         task.result = str(answer) if answer else "Task completed by C-level agent"
+        self.ceo._save_state()  # Save state after C-level agent task completion
+        
+        # Assess task quality for learning
+        try:
+            await self.learning_engine.assess_task_quality(
+                task_id=task.id,
+                task_title=task.title,
+                task_description=task.description or "",
+                task_result=task.result or "",
+                executor_type=agent_name,
+                executor_role=None,
+                task_area=task.area or "general",
+                task_priority=task.priority,
+            )
+        except Exception:
+            pass  # Don't fail task execution if quality assessment fails
 
         return {"status": "done", "tool": agent_name, "result": answer}
 
@@ -490,6 +574,22 @@ class CompanyBrain:
                     }
                     task.status = "done"
                     task.result = str(output) if output else "Task completed by virtual employee"
+                    self.ceo._save_state()  # Save state after VE task completion
+                    
+                    # Assess task quality for learning
+                    try:
+                        await self.learning_engine.assess_task_quality(
+                            task_id=task.id,
+                            task_title=task.title,
+                            task_description=task.description or "",
+                            task_result=task.result or "",
+                            executor_type="BaseVirtualEmployee",
+                            executor_role=role_id,
+                            task_area=task.area or "general",
+                            task_priority=task.priority,
+                        )
+                    except Exception:
+                        pass  # Don't fail task execution if quality assessment fails
                 except Exception as e:
                     # Fallback to CEO execution if VE execution fails
                     execution_result = {
@@ -499,6 +599,23 @@ class CompanyBrain:
                     }
                     run_res = await self.ceo.run_task(task)
                     execution_result["ceo_result"] = run_res
+                    # Update task result if CEO execution succeeded
+                    if run_res.get("status") == "done":
+                        task.result = str(run_res.get("result", ""))
+                        # Assess quality
+                        try:
+                            await self.learning_engine.assess_task_quality(
+                                task_id=task.id,
+                                task_title=task.title,
+                                task_description=task.description or "",
+                                task_result=task.result or "",
+                                executor_type="CEO",
+                                executor_role=None,
+                                task_area=task.area or "general",
+                                task_priority=task.priority,
+                            )
+                        except Exception:
+                            pass
             else:
                 # No matching config found, fallback to CEO
                 run_res = await self.ceo.run_task(task)
@@ -508,6 +625,21 @@ class CompanyBrain:
                     "reason": f"No YAML config found for role_id: {role_id}",
                     "ceo_result": run_res,
                 }
+                # Assess quality
+                if run_res.get("status") == "done" and task.result:
+                    try:
+                        await self.learning_engine.assess_task_quality(
+                            task_id=task.id,
+                            task_title=task.title,
+                            task_description=task.description or "",
+                            task_result=task.result or "",
+                            executor_type="CEO",
+                            executor_role=None,
+                            task_area=task.area or "general",
+                            task_priority=task.priority,
+                        )
+                    except Exception:
+                        pass
         else:
             # Could not normalize role name, fallback to CEO
             run_res = await self.ceo.run_task(task)
@@ -517,6 +649,21 @@ class CompanyBrain:
                 "reason": f"Could not normalize role name: {owner}",
                 "ceo_result": run_res,
             }
+            # Assess quality
+            if run_res.get("status") == "done" and task.result:
+                try:
+                    await self.learning_engine.assess_task_quality(
+                        task_id=task.id,
+                        task_title=task.title,
+                        task_description=task.description or "",
+                        task_result=task.result or "",
+                        executor_type="CEO",
+                        executor_role=None,
+                        task_area=task.area or "general",
+                        task_priority=task.priority,
+                    )
+                except Exception:
+                    pass
 
         return {
             "status": execution_result.get("status", "done"),
@@ -561,6 +708,23 @@ class CompanyBrain:
 
             # 4) Fallback: CEO's own tool routing (log_tool, etc.)
             res = await self.ceo.run_task(t)
+            
+            # Assess task quality for learning (if task completed)
+            if res.get("status") == "done" and t.result:
+                try:
+                    await self.learning_engine.assess_task_quality(
+                        task_id=t.id,
+                        task_title=t.title,
+                        task_description=t.description or "",
+                        task_result=t.result or "",
+                        executor_type="CEO",
+                        executor_role=None,
+                        task_area=t.area or "general",
+                        task_priority=t.priority,
+                    )
+                except Exception:
+                    pass  # Don't fail if quality assessment fails
+            
             return {"task": t.title, "result": res}
 
         # Run tasks concurrently with a semaphore to prevent rate limits
@@ -573,6 +737,83 @@ class CompanyBrain:
 
         results = await asyncio.gather(*[semaphore_wrapper(t) for t in pending_tasks])
         return results
+
+    async def run_autonomous_cycle(self) -> str:
+        """
+        Run a single autonomous cycle:
+        1. Generate daily plan if no tasks exist
+        2. Returns plan text
+        
+        This is called by the continuous scheduler when no tasks are pending.
+        """
+        # Generate daily plan (plan_day is sync, wrap in executor to avoid blocking event loop)
+        import asyncio
+        loop = asyncio.get_event_loop()
+        plan_text = await loop.run_in_executor(None, self.plan_day)
+        return plan_text
+
+    async def follow_up_stale_tasks(self) -> int:
+        """
+        Follow up on stale or blocked tasks:
+        - Tasks that haven't been updated in > 24 hours
+        - Tasks that are blocked for > 48 hours
+        
+        Returns number of tasks followed up.
+        """
+        from datetime import datetime, timedelta
+        
+        now = datetime.utcnow()
+        stale_threshold = timedelta(hours=24)
+        blocked_threshold = timedelta(hours=48)
+        
+        followed_up = 0
+        
+        for task in self.ceo.state.tasks:
+            if task.status == "done":
+                continue
+            
+            task_age = now - task.updated_at
+            
+            # Check for stale tasks (not updated in 24h)
+            if task_age > stale_threshold and task.status not in ["done", "blocked"]:
+                # Mark as needing attention or escalate
+                self.memory.record_decision(
+                    text=f"Task '{task.title}' is stale (last updated {task_age.total_seconds()/3600:.1f}h ago). Escalating.",
+                    context={
+                        "type": "stale_task_followup",
+                        "task_id": task.id,
+                        "age_hours": task_age.total_seconds() / 3600,
+                    },
+                )
+                followed_up += 1
+            
+            # Check for blocked tasks (blocked for > 48h)
+            elif task.status == "blocked" and task_age > blocked_threshold:
+                # Try to unblock or escalate
+                self.memory.record_decision(
+                    text=f"Task '{task.title}' has been blocked for {task_age.total_seconds()/3600:.1f}h. Attempting to resolve.",
+                    context={
+                        "type": "blocked_task_followup",
+                        "task_id": task.id,
+                        "age_hours": task_age.total_seconds() / 3600,
+                    },
+                )
+                # Try to re-run the task (maybe conditions changed)
+                try:
+                    await self.ceo.run_task(task)
+                except Exception as e:
+                    # If still fails, escalate to C-level
+                    self.memory.record_decision(
+                        text=f"Blocked task '{task.title}' still failing after retry. Escalating to CEO review.",
+                        context={
+                            "type": "task_escalation",
+                            "task_id": task.id,
+                            "error": str(e),
+                        },
+                    )
+                followed_up += 1
+        
+        return followed_up
 
     # ------------- Virtual staff helpers -------------
 
