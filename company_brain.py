@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import asyncio
 from typing import Dict, Any, List, Optional, Tuple
 
 import yaml
@@ -303,27 +304,27 @@ class CompanyBrain:
             self._company_context_cache = self._build_company_context()
         return self._company_context_cache
 
-    def delegate_to_cro(self, instruction: str, extra_context: str = "") -> str:
+    async def delegate_to_cro(self, instruction: str, extra_context: str = "") -> str:
         if not self.cro_agent:
             return "CROAgent not configured."
         context = self._build_company_context() + "\n" + extra_context
-        return self.cro_agent.run(instruction, context=context)
+        return await self.cro_agent.run(instruction, context=context)
 
-    def delegate_to_coo(self, instruction: str, extra_context: str = "") -> str:
+    async def delegate_to_coo(self, instruction: str, extra_context: str = "") -> str:
         if not self.coo_agent:
             return "COOAgent not configured."
         context = self._build_company_context() + "\n" + extra_context
-        return self.coo_agent.run(instruction, context=context)
+        return await self.coo_agent.run(instruction, context=context)
 
-    def delegate_to_cto(self, instruction: str, extra_context: str = "") -> str:
+    async def delegate_to_cto(self, instruction: str, extra_context: str = "") -> str:
         if not self.cto_agent:
             return "CTOAgent not configured."
         context = self._build_company_context() + "\n" + extra_context
-        return self.cto_agent.run(instruction, context=context)
+        return await self.cto_agent.run(instruction, context=context)
 
     # ------------- Agent routing for tasks -------------
 
-    def _maybe_delegate_task_to_agent(self, task) -> Optional[Dict[str, Any]]:
+    async def _maybe_delegate_task_to_agent(self, task) -> Optional[Dict[str, Any]]:
         """
         Decide if a task should go to CRO/COO/CTO based on its area and route it.
         Returns a result dict if delegated, otherwise None.
@@ -355,7 +356,7 @@ class CompanyBrain:
 
         # Call the agent with context + instruction
         context = f"Task Title: {task.title}\nSuggested Owner: {task.suggested_owner}\nPriority: P{task.priority}"
-        answer = responder(desc, extra_context=context)
+        answer = await responder(desc, extra_context=context)
 
         # Log into memory as a 'tool' call for traceability
         self.ceo.memory.record_tool_call(
@@ -368,7 +369,7 @@ class CompanyBrain:
 
         return {"status": "done", "tool": agent_name, "result": answer}
 
-    def _maybe_route_task_to_virtual_staff(self, task) -> Optional[Dict[str, Any]]:
+    async def _maybe_route_task_to_virtual_staff(self, task) -> Optional[Dict[str, Any]]:
         """
         Route task to virtual employee if suggested_owner matches a virtual role.
 
@@ -478,7 +479,7 @@ class CompanyBrain:
             if ve_agent:
                 try:
                     # Execute task using the virtual employee agent
-                    output = ve_agent.run_task(task)
+                    output = await ve_agent.run_task(task)
                     execution_result = {
                         "status": "done",
                         "executed_by": "BaseVirtualEmployee",
@@ -494,11 +495,11 @@ class CompanyBrain:
                         "error": str(e),
                         "fallback": "ceo.run_task",
                     }
-                    run_res = self.ceo.run_task(task)
+                    run_res = await self.ceo.run_task(task)
                     execution_result["ceo_result"] = run_res
             else:
                 # No matching config found, fallback to CEO
-                run_res = self.ceo.run_task(task)
+                run_res = await self.ceo.run_task(task)
                 execution_result = {
                     "status": "done",
                     "executed_by": "ceo.run_task",
@@ -507,7 +508,7 @@ class CompanyBrain:
                 }
         else:
             # Could not normalize role name, fallback to CEO
-            run_res = self.ceo.run_task(task)
+            run_res = await self.ceo.run_task(task)
             execution_result = {
                 "status": "done",
                 "executed_by": "ceo.run_task",
@@ -524,7 +525,7 @@ class CompanyBrain:
             "execution": execution_result,
         }
 
-    def run_pending_tasks(self) -> List[Dict[str, Any]]:
+    async def run_pending_tasks(self) -> List[Dict[str, Any]]:
         """
         Run all not-done tasks.
 
@@ -534,33 +535,41 @@ class CompanyBrain:
         - Third: Try virtual staff routing for implicit matches
         - Fallback: AgenticCEO.run_task() (log_tool/manual).
         """
-        results: List[Dict[str, Any]] = []
+        pending_tasks = [t for t in list(self.ceo.state.tasks) if t.status != "done"]
+        
+        if not pending_tasks:
+            return []
 
-        for t in list(self.ceo.state.tasks):
-            if t.status != "done":
-                # 1) Virtual staff routing FIRST (if explicitly assigned)
-                if self._has_virtual_employee_assignment(t):
-                    v_res = self._maybe_route_task_to_virtual_staff(t)
-                    if v_res is not None:
-                        results.append({"task": t.title, "result": v_res})
-                        continue
-                
-                # 2) CRO / COO / CTO delegation (if no VE assignment)
-                delegated = self._maybe_delegate_task_to_agent(t)
-                if delegated is not None:
-                    results.append({"task": t.title, "result": delegated})
-                    continue
-
-                # 3) Virtual staff routing (fallback for implicit matches)
-                v_res = self._maybe_route_task_to_virtual_staff(t)
+        async def process_single_task(t):
+            # 1) Virtual staff routing FIRST (if explicitly assigned)
+            if self._has_virtual_employee_assignment(t):
+                v_res = await self._maybe_route_task_to_virtual_staff(t)
                 if v_res is not None:
-                    results.append({"task": t.title, "result": v_res})
-                    continue
+                    return {"task": t.title, "result": v_res}
+            
+            # 2) CRO / COO / CTO delegation (if no VE assignment)
+            delegated = await self._maybe_delegate_task_to_agent(t)
+            if delegated is not None:
+                return {"task": t.title, "result": delegated}
 
-                # 4) Fallback: CEO's own tool routing (log_tool, etc.)
-                res = self.ceo.run_task(t)
-                results.append({"task": t.title, "result": res})
+            # 3) Virtual staff routing (fallback for implicit matches)
+            v_res = await self._maybe_route_task_to_virtual_staff(t)
+            if v_res is not None:
+                return {"task": t.title, "result": v_res}
 
+            # 4) Fallback: CEO's own tool routing (log_tool, etc.)
+            res = await self.ceo.run_task(t)
+            return {"task": t.title, "result": res}
+
+        # Run tasks concurrently with a semaphore to prevent rate limits
+        # 10 concurrent tasks is a reasonable default for OpenAI
+        sem = asyncio.Semaphore(10)
+
+        async def semaphore_wrapper(t):
+            async with sem:
+                return await process_single_task(t)
+
+        results = await asyncio.gather(*[semaphore_wrapper(t) for t in pending_tasks])
         return results
 
     # ------------- Virtual staff helpers -------------

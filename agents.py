@@ -40,7 +40,7 @@ class FunctionalAgent:
     system_prompt: str
     llm: LLMClient
 
-    def run(self, instruction: str, context: str = "") -> str:
+    async def run(self, instruction: str, context: str = "") -> str:
         """
         Execute a domain-specific instruction with optional company context.
         Returns the LLM's response as a string.
@@ -56,7 +56,10 @@ class FunctionalAgent:
             "- 3–5 concrete actions\n"
             "- Any risks or dependencies\n"
         )
-        return self.llm.complete(system, user)
+        if hasattr(self.llm, "acomplete"):
+            return await self.llm.acomplete(system, user)
+        else:
+            return self.llm.complete(system, user)
 
 
 class CROAgent(FunctionalAgent):

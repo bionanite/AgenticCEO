@@ -421,7 +421,7 @@ companies:
     industry: "Real Estate Matchmaking Platform"
     vision: "Connect buyers, sellers, brokers, and developers instantly through AI-driven real estate matchmaking."
     mission: "Use intelligent scoring, matchmaking, and verified developer inventory to help buyers, brokers, and developers close more off-plan and ready property deals, faster and with more trust."
-    north_star_metric: "Qualified Matches per Month"
+    north_star_metric: "Real Estate Agency Annual Subscriptions Revenue"
     primary_markets:
       - "UAE"
       - "GCC"
@@ -431,13 +431,17 @@ companies:
       - "Off-plan developer project integration"
       - "Developer-to-broker inventory distribution"
       - "Agent & broker performance scoring"
-      - "Smart viewing and follow-up scheduling"
-      - "Property recommendation engine"
+    
 
     team_size: 8
     website: "https://remapp.ae"
 
     kpis:
+    # Core matchmaking KPI (north star)
+      - name: "Subscription Revenue"
+        min: 2000
+        max: 10000
+        unit: "matches"
       # Core matchmaking KPI (north star)
       - name: "Qualified Matches"
         min: 2000
@@ -446,13 +450,13 @@ companies:
 
       # Supply-side: developers & projects
       - name: "Active Developers"
-        min: 15
-        max: 700
+        min: 700
+        max: 1400
         unit: "developers"
 
       - name: "Live Off-plan Projects"
-        min: 50
-        max: 1000
+        min: 2000
+        max: 3000
         unit: "projects"
 
       # Distribution to brokers

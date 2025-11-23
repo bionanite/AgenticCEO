@@ -1,41 +1,68 @@
 """
-Agentic CEO – Real-Time Control Dashboard
+Agentic CEO – Control Dashboard (Upgraded)
 
-FastAPI app that shows:
-- Snapshot metrics parsed from CEO memory (today + previous day)
+FastAPI app that shows and controls your Agentic CEO:
+
+- Snapshot metrics (today + previous day)
 - Company context
-- Open tasks table with approval actions
-- Buttons to plan day & run pending tasks
-- Virtual employees + which tasks are assigned to whom
+- Open tasks table (with approve / run actions)
+- System load + tasks-by-area charts
+- Virtual employees & their allocated tasks
+- Buttons to "Plan Day" and "Run Pending Tasks"
 
-Run (basic):
+Run via uvicorn (recommended):
     uvicorn dashboard:app --reload --port 8080
 
-Or with company:
-    AGENTIC_CEO_COMPANY=next_ecosystem uvicorn dashboard:app --reload --port 8080
+Or directly:
+    python dashboard.py --port 8080
 """
 
 from __future__ import annotations
 
+import argparse
+import datetime as dt
 import os
 import re
 from collections import Counter
-from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, Request, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from company_brain import create_default_brain
+from company_brain import CompanyBrain, DEFAULT_CONFIG_PATH, DEFAULT_COMPANY_KEY
 
 # -------------------------------------------------------------------
-# Instantiate brain once per process
+# Brain lifecycle
 # -------------------------------------------------------------------
 
-brain = create_default_brain()
+_brain: Optional[CompanyBrain] = None
 
-app = FastAPI(title="Agentic CEO Dashboard")
+
+def get_brain() -> CompanyBrain:
+    """
+    Lazy-initialize a single CompanyBrain per process.
+
+    Uses env vars:
+      AGENTIC_CEO_CONFIG
+      AGENTIC_CEO_COMPANY
+    """
+    global _brain
+    if _brain is not None:
+        return _brain
+
+    config_path = os.getenv("AGENTIC_CEO_CONFIG", DEFAULT_CONFIG_PATH)
+    company_key = os.getenv("AGENTIC_CEO_COMPANY", DEFAULT_COMPANY_KEY)
+
+    _brain = CompanyBrain.from_config(config_path=config_path, company_key=company_key)
+    return _brain
+
+
+# -------------------------------------------------------------------
+# FastAPI app
+# -------------------------------------------------------------------
+
+app = FastAPI(title="Agentic CEO Control Dashboard")
 
 app.add_middleware(
     CORSMiddleware,
@@ -54,9 +81,9 @@ app.add_middleware(
 def parse_snapshot(snapshot: str) -> Dict[str, Any]:
     """
     Parse the textual snapshot produced by CompanyBrain.snapshot()
-    to extract useful numeric metrics for charts / cards.
+    to extract numeric metrics.
 
-    Defensive: will not crash if format changes and will keep defaults.
+    Defensive by design so format changes don't crash things.
     """
     metrics: Dict[str, Any] = {
         "date": None,
@@ -93,27 +120,20 @@ def parse_snapshot(snapshot: str) -> Dict[str, Any]:
             try:
                 metrics[key] = int(m.group(1))
             except ValueError:
-                # Keep default value if parsing fails
                 pass
 
     return metrics
 
 
-def build_task_payload() -> Dict[str, Any]:
+def build_tasks_payload() -> Dict[str, Any]:
     """
-    Build JSON-safe tasks + simple aggregations for charts.
-    Uses current CEO state tasks.
+    Build JSON-safe task list + simple aggregations for charts.
     """
-    state = getattr(brain, "ceo", None)
+    brain = get_brain()
+    ceo = brain.ceo
     tasks: List[Dict[str, Any]] = []
 
-    if state is None or not getattr(state, "state", None):
-        return {"tasks": [], "by_area": {}, "by_status": {}}
-
-    ceo_state = state.state
-    ceo_tasks: List[Any] = getattr(ceo_state, "tasks", []) or []
-
-    for t in ceo_tasks:
+    for t in getattr(ceo.state, "tasks", []) or []:
         tasks.append(
             {
                 "id": getattr(t, "id", ""),
@@ -137,47 +157,102 @@ def build_task_payload() -> Dict[str, Any]:
     }
 
 
-def get_snapshot_for_offset(day_offset: int = 0) -> str:
+def build_vstaff_payload() -> Dict[str, Any]:
     """
-    Get snapshot or memory summary for a given day offset relative to CEO state date.
+    Try to return a normalized view of virtual employees + their tasks.
 
-    day_offset:
-        0  -> today (uses CompanyBrain.snapshot(), includes metrics + open tasks)
-       -1  -> previous day reflection from MemoryEngine
-       -n  -> n days ago (if memory exists)
+    We are defensive here because VirtualStaffManager may evolve.
     """
-    if day_offset == 0:
-        return brain.snapshot()
+    brain = get_brain()
+    vsm = getattr(brain, "virtual_staff", None)
+    if vsm is None:
+        return {"employees": [], "meta": {}}
 
-    # Try to compute base date from CEO state
-    ceo_state = getattr(brain.ceo, "state", None)
-    base_date_str: Optional[str] = getattr(ceo_state, "date", None)
+    summary: Dict[str, Any] = {}
+    if hasattr(vsm, "summarize"):
+        summary = vsm.summarize()  # type: ignore[attr-defined]
+    elif hasattr(vsm, "to_dict"):
+        summary = vsm.to_dict()  # type: ignore[attr-defined]
 
-    if not base_date_str:
-        # Fallback: just use snapshot; better than nothing
-        return brain.snapshot()
+    if not isinstance(summary, dict):
+        return {"employees": [], "meta": {"raw": summary}}
 
+    employees = summary.get("employees") or summary.get("virtual_employees") or []
+
+    # Normalize minimal fields expected by UI
+    normalized: List[Dict[str, Any]] = []
+    for e in employees:
+        if not isinstance(e, dict):
+            continue
+        normalized.append(
+            {
+                "id": e.get("id"),
+                "name": e.get("name") or e.get("display_name") or e.get("role"),
+                "role": e.get("role"),
+                "tasks": e.get("tasks") or e.get("assigned_tasks") or [],
+                "remaining_slots": e.get("remaining_task_slots") or e.get(
+                    "remaining_slots"
+                ),
+            }
+        )
+
+    return {"employees": normalized, "meta": {k: v for k, v in summary.items() if k not in ("employees", "virtual_employees")}}
+
+
+def get_previous_date_str(offset_days: int = 1) -> str:
+    today = get_brain().ceo.state.date  # assume YYYY-MM-DD
     try:
-        base = date.fromisoformat(base_date_str)
+        base = dt.datetime.strptime(today, "%Y-%m-%d").date()
     except Exception:
-        return brain.snapshot()
-
-    target = base + timedelta(days=day_offset)
-    # Use MemoryEngine directly for that date
-    return brain.ceo.memory.summarize_day(target.isoformat())
+        base = dt.date.today()
+    prev = base - dt.timedelta(days=offset_days)
+    return prev.isoformat()
 
 
 # -------------------------------------------------------------------
-# API endpoints – used by the frontend JS
+# API endpoints – used by frontend JS
 # -------------------------------------------------------------------
+
+
+@app.get("/api/dashboard")
+def api_dashboard() -> JSONResponse:
+    """
+    Structured snapshot for dashboards / APIs using CompanyBrain.get_dashboard_state().
+    """
+    brain = get_brain()
+    state = brain.get_dashboard_state()
+    return JSONResponse(state)
 
 
 @app.get("/api/snapshot")
-def api_snapshot(day_offset: int = Query(0)) -> JSONResponse:
+def api_snapshot(day: str = "today") -> JSONResponse:
     """
-    Get snapshot + metrics for today (day_offset=0) or previous days (e.g. -1).
+    Returns snapshot text + parsed metrics.
+
+    day: "today" | "yesterday" | "d-2" (optional simple offsets)
     """
-    snap_text = get_snapshot_for_offset(day_offset)
+    brain = get_brain()
+
+    if day == "today":
+        snap_text = brain.snapshot()
+    else:
+        # Very simple date offset parser: "yesterday" or "d-N"
+        if day == "yesterday":
+            offset = 1
+        elif day.startswith("d-"):
+            try:
+                offset = int(day[2:])
+            except ValueError:
+                offset = 1
+        else:
+            offset = 1
+
+        target_date = get_previous_date_str(offset)
+        try:
+            snap_text = brain.ceo.memory.summarize_day(target_date)
+        except Exception:
+            snap_text = f"No snapshot available for {target_date}."
+
     metrics = parse_snapshot(snap_text)
 
     company = getattr(brain, "company_profile", None)
@@ -187,10 +262,10 @@ def api_snapshot(day_offset: int = Query(0)) -> JSONResponse:
         company_info = {
             "id": getattr(brain, "company_id", company.name),
             "name": company.name,
-            "industry": company.industry,
-            "vision": company.vision,
-            "mission": company.mission,
-            "north_star_metric": company.north_star_metric,
+            "industry": getattr(company, "industry", ""),
+            "vision": getattr(company, "vision", ""),
+            "mission": getattr(company, "mission", ""),
+            "north_star_metric": getattr(company, "north_star_metric", ""),
             "primary_markets": getattr(company, "primary_markets", []) or [],
             "products_or_services": getattr(company, "products_or_services", []) or [],
         }
@@ -200,86 +275,109 @@ def api_snapshot(day_offset: int = Query(0)) -> JSONResponse:
             "snapshot_text": snap_text,
             "metrics": metrics,
             "company": company_info,
-            "day_offset": day_offset,
+            "day": day,
         }
     )
 
 
 @app.get("/api/tasks")
 def api_tasks() -> JSONResponse:
-    payload = build_task_payload()
+    """
+    Return current tasks + simple aggregations.
+    """
+    payload = build_tasks_payload()
+    brain = get_brain()
+    needing_approval = brain.get_tasks_requiring_approval()
+    payload["needs_approval_count"] = len(needing_approval)
     return JSONResponse(payload)
 
 
 @app.get("/api/tasks/requiring_approval")
 def api_tasks_requiring_approval() -> JSONResponse:
-    """
-    Return tasks that have requires_approval=True and are not yet approved/done.
-    """
-    tasks = []
+    brain = get_brain()
+    tasks_payload = []
     for t in brain.get_tasks_requiring_approval():
-        tasks.append(
+        tasks_payload.append(
             {
                 "id": getattr(t, "id", ""),
                 "title": getattr(t, "title", ""),
-                "area": getattr(t, "area", "") or "unspecified",
+                "area": getattr(t, "area", ""),
                 "priority": getattr(t, "priority", None),
-                "owner": getattr(t, "suggested_owner", "") or "",
-                "status": getattr(t, "status", "") or "unknown",
-                "requires_approval": True,
-                "approved": bool(getattr(t, "approved", False)),
+                "owner": getattr(t, "suggested_owner", ""),
+                "status": getattr(t, "status", ""),
             }
         )
-    return JSONResponse({"tasks": tasks})
+    return JSONResponse({"tasks": tasks_payload})
 
 
-@app.post("/api/tasks/approve")
-async def api_approve_task(request: Request) -> JSONResponse:
+@app.post("/api/tasks/{task_id}/approve")
+def api_approve_task(task_id: str) -> JSONResponse:
     """
     Approve a task so it can run in approval mode.
-    Body: { "task_id": "..." }
     """
-    data = await request.json()
-    task_id = data.get("task_id")
-    if not task_id:
-        return JSONResponse({"ok": False, "error": "task_id is required"}, status_code=400)
-
+    brain = get_brain()
     ok = brain.approve_task(task_id)
-    return JSONResponse({"ok": ok, "task_id": task_id})
+    if not ok:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return JSONResponse({"ok": True, "task_id": task_id})
 
 
-@app.post("/api/tasks/run")
-def api_run_tasks() -> JSONResponse:
+@app.post("/api/tasks/{task_id}/run")
+def api_run_single_task(task_id: str) -> JSONResponse:
     """
-    Run all pending tasks via CompanyBrain.run_pending_tasks().
+    Run a single task by ID (bypassing run_pending_tasks).
+
+    Used when human approves & triggers an individual item.
     """
-    results = brain.run_pending_tasks()
-    return JSONResponse({"ok": True, "results": results})
+    brain = get_brain()
+    ceo = brain.ceo
+    target = None
+    for t in getattr(ceo.state, "tasks", []) or []:
+        if getattr(t, "id", None) == task_id:
+            target = t
+            break
+
+    if target is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    result = ceo.run_task(target)
+    return JSONResponse({"ok": True, "task_id": task_id, "result": result})
 
 
-@app.post("/api/plan")
+@app.post("/api/ceo/plan")
 def api_plan_day() -> JSONResponse:
     """
-    Ask Agentic CEO to plan the day (generate tasks, stored in ceo.state.tasks).
+    Ask Agentic CEO to generate a daily plan (tasks will be stored in state).
     """
+    brain = get_brain()
     text = brain.plan_day()
-    # Also refresh task payload
-    tasks_payload = build_task_payload()
-    return JSONResponse({"ok": True, "plan_text": text, "tasks": tasks_payload})
+    tasks_payload = build_tasks_payload()
+    return JSONResponse({"plan": text, "tasks": tasks_payload})
 
 
-@app.get("/api/state")
-def api_state() -> JSONResponse:
+@app.post("/api/ceo/run_pending")
+def api_run_pending() -> JSONResponse:
     """
-    Full structured state from CompanyBrain.get_dashboard_state():
-        - company, snapshot, tasks, vstaff, kpis
+    Run all pending tasks (delegation + virtual staff routing).
     """
-    state = brain.get_dashboard_state()
-    return JSONResponse(state)
+    brain = get_brain()
+    results = brain.run_pending_tasks()
+    # After running, rebuild tasks for UI
+    tasks_payload = build_tasks_payload()
+    return JSONResponse({"results": results, "tasks": tasks_payload})
+
+
+@app.get("/api/vstaff")
+def api_vstaff() -> JSONResponse:
+    """
+    Virtual employees + their allocated tasks.
+    """
+    payload = build_vstaff_payload()
+    return JSONResponse(payload)
 
 
 # -------------------------------------------------------------------
-# HTML dashboard – Tailwind + Chart.js, auto-refresh every 10s
+# HTML dashboard – Tailwind + Chart.js, auto-refresh
 # -------------------------------------------------------------------
 
 
@@ -308,6 +406,7 @@ def index() -> HTMLResponse:
 
 <body class="h-full text-slate-100">
 <div class="min-h-screen max-w-7xl mx-auto px-4 py-6 space-y-6">
+
   <!-- Header -->
   <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div>
@@ -322,42 +421,39 @@ def index() -> HTMLResponse:
 
     <div class="flex flex-wrap gap-2 items-center">
       <button
+        id="btnPlan"
         class="pill px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-sm font-medium shadow-md shadow-emerald-500/30"
-        onclick="planDay()"
       >
         Plan Day
       </button>
-
       <button
+        id="btnRunPending"
         class="pill px-4 py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 text-sm font-medium shadow-md shadow-sky-500/30"
-        onclick="runPendingTasks()"
       >
         Run Pending Tasks
       </button>
-
       <button
-        class="pill px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 text-sm font-medium border border-slate-600"
-        onclick="fetchAll()"
+        id="btnRefresh"
+        class="pill px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 text-sm font-medium border border-slate-700"
       >
         Refresh Now
       </button>
-
       <span class="pill px-3 py-2 text-xs font-mono bg-slate-900/80 border border-slate-700 text-slate-300">
         Auto-refresh: <span id="refreshCountdown">10</span>s
       </span>
     </div>
   </header>
 
-  <!-- Top Grid: Snapshot (today + previous) + Company -->
+  <!-- Top Grid: Snapshot + Company / Previous Day -->
   <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
     <!-- Snapshot Today -->
-    <div class="card p-4 md:p-6 space-y-3 lg:col-span-2">
+    <div class="card lg:col-span-2 p-4 md:p-6 space-y-3">
       <div class="flex items-center justify-between gap-2">
-        <h2 class="text-lg font-semibold text-slate-100">Snapshot – Today</h2>
-        <span id="snapshotDate" class="text-xs text-slate-400 font-mono">—</span>
+        <h2 class="text-sm md:text-base font-semibold text-slate-100">Snapshot – Today</h2>
+        <span id="snapshotDateToday" class="text-xs text-slate-400 font-mono">—</span>
       </div>
 
-      <pre id="snapshotText" class="mt-2 text-xs md:text-sm text-slate-300 bg-slate-900/70 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">
+      <pre id="snapshotTextToday" class="mt-2 text-xs md:text-sm text-slate-300 bg-slate-900/70 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap">
 Loading snapshot…
       </pre>
 
@@ -382,35 +478,35 @@ Loading snapshot…
       </div>
     </div>
 
-    <!-- Company & Previous Day -->
+    <!-- Company + Previous Day Summary -->
     <div class="space-y-4">
       <!-- Company -->
-      <div class="card p-4 md:p-6 space-y-3">
+      <div class="card p-4 md:p-5 space-y-3">
         <div class="flex items-center justify-between gap-2">
-          <h2 class="text-lg font-semibold text-slate-100">Company</h2>
-          <span id="companyId" class="text-xs font-mono text-slate-400"></span>
+          <h2 class="text-sm font-semibold text-slate-100">Company</h2>
+          <span id="companyId" class="text-[10px] font-mono text-slate-400"></span>
         </div>
 
-        <div class="space-y-2 text-sm">
+        <div class="space-y-2 text-xs md:text-sm">
           <div>
-            <p class="text-slate-400 text-xs uppercase tracking-wide">Name</p>
+            <p class="text-slate-400 text-[10px] uppercase tracking-wide">Name</p>
             <p id="companyName" class="text-slate-100 font-medium">—</p>
           </div>
           <div>
-            <p class="text-slate-400 text-xs uppercase tracking-wide">Industry</p>
+            <p class="text-slate-400 text-[10px] uppercase tracking-wide">Industry</p>
             <p id="companyIndustry" class="text-slate-100">—</p>
           </div>
           <div>
-            <p class="text-slate-400 text-xs uppercase tracking-wide">North Star Metric</p>
+            <p class="text-slate-400 text-[10px] uppercase tracking-wide">North Star Metric</p>
             <p id="companyNorthStar" class="text-emerald-300 font-medium">—</p>
           </div>
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <p class="text-slate-400 text-xs uppercase tracking-wide">Markets</p>
+              <p class="text-slate-400 text-[10px] uppercase tracking-wide">Markets</p>
               <p id="companyMarkets" class="text-slate-100 text-xs">—</p>
             </div>
             <div>
-              <p class="text-slate-400 text-xs uppercase tracking-wide">Products / Apps</p>
+              <p class="text-slate-400 text-[10px] uppercase tracking-wide">Products / Apps</p>
               <p id="companyProducts" class="text-slate-100 text-xs">—</p>
             </div>
           </div>
@@ -418,13 +514,13 @@ Loading snapshot…
       </div>
 
       <!-- Previous Day Summary -->
-      <div class="card p-3 md:p-4 space-y-2">
-        <div class="flex items-center justify-between">
-          <h2 class="text-sm font-semibold text-slate-100">Previous Day Summary</h2>
-          <span id="prevSnapshotDate" class="text-[11px] text-slate-400 font-mono">—</span>
+      <div class="card p-4 md:p-5 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-xs md:text-sm font-semibold text-slate-100">Previous Day Summary</h2>
+          <span id="snapshotDateYesterday" class="text-[10px] text-slate-400 font-mono">—</span>
         </div>
-        <pre id="prevSnapshotText" class="text-[11px] text-slate-300 bg-slate-900/70 rounded-lg p-2 overflow-x-auto whitespace-pre-wrap max-h-40">
-Loading…
+        <pre id="snapshotTextYesterday" class="mt-1 text-[10px] md:text-xs text-slate-300 bg-slate-900/70 rounded-lg p-2 overflow-x-auto whitespace-pre-wrap">
+Loading yesterday…
         </pre>
       </div>
     </div>
@@ -452,8 +548,13 @@ Loading…
   <!-- Tasks Table -->
   <section class="card p-4 md:p-6 space-y-3">
     <div class="flex items-center justify-between">
-      <h2 class="text-lg font-semibold text-slate-100">Tasks</h2>
-      <span id="tasksSummary" class="text-xs text-slate-400">Loading…</span>
+      <div class="flex flex-col gap-1">
+        <h2 class="text-lg font-semibold text-slate-100">Tasks</h2>
+        <p id="tasksSummary" class="text-xs text-slate-400">Loading…</p>
+      </div>
+      <span id="tasksApprovalBadge" class="pill px-3 py-1 text-[10px] bg-amber-500/10 border border-amber-400/40 text-amber-200 hidden">
+        Tasks requiring approval: <span id="tasksApprovalCount">0</span>
+      </span>
     </div>
 
     <div class="overflow-x-auto">
@@ -478,15 +579,27 @@ Loading…
     </div>
   </section>
 
-  <!-- Virtual Employees & Allocations -->
+  <!-- Virtual Employees -->
   <section class="card p-4 md:p-6 space-y-3">
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-semibold text-slate-100">Virtual Employees & Allocated Tasks</h2>
       <span id="vstaffSummary" class="text-xs text-slate-400">Loading…</span>
     </div>
 
-    <div id="vstaffContainer" class="space-y-3 text-xs md:text-sm">
-      <p class="text-slate-500 text-xs">Loading virtual staff state…</p>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-xs md:text-sm text-left">
+        <thead class="border-b border-slate-700/80 text-slate-400 text-[11px] uppercase tracking-wide">
+          <tr>
+            <th class="px-2 py-2">Employee</th>
+            <th class="px-2 py-2">Role</th>
+            <th class="px-2 py-2">Remaining Slots</th>
+            <th class="px-2 py-2">Tasks</th>
+          </tr>
+        </thead>
+        <tbody id="vstaffTableBody" class="divide-y divide-slate-800/80 text-slate-200">
+          <tr><td colspan="4" class="px-2 py-3 text-center text-slate-500">No virtual staff data available yet.</td></tr>
+        </tbody>
+      </table>
     </div>
   </section>
 </div>
@@ -496,6 +609,7 @@ Loading…
   let tasksAreaChart = null;
   let refreshInterval = 10;
   let countdown = refreshInterval;
+  let isRunning = false;
 
   function updateCountdown() {
     const el = document.getElementById("refreshCountdown");
@@ -503,107 +617,89 @@ Loading…
     countdown -= 1;
     if (countdown <= 0) {
       countdown = refreshInterval;
-      fetchAll();
+      fetchAll(false);
     }
     el.textContent = countdown;
   }
 
-  async function fetchSnapshotToday() {
-    const res = await fetch("/api/snapshot?day_offset=0");
+  async function fetchSnapshot(day, targetPrefix) {
+    const res = await fetch("/api/snapshot?day=" + day);
     const data = await res.json();
 
     const snapText = data.snapshot_text || "";
-    document.getElementById("snapshotText").textContent = snapText.trim() || "No snapshot yet.";
+    document.getElementById("snapshotText" + targetPrefix).textContent = snapText.trim() || "No snapshot yet.";
 
     const m = data.metrics || {};
-    document.getElementById("snapshotDate").textContent = m.date || "";
-    document.getElementById("metricDecisions").textContent = m.decisions_made ?? 0;
-    document.getElementById("metricTools").textContent = m.tool_calls ?? 0;
-    document.getElementById("metricLLM").textContent = m.llm_calls ?? 0;
-    document.getElementById("metricTokens").textContent = m.tokens_used ?? 0;
+    if (targetPrefix === "Today") {
+      document.getElementById("snapshotDateToday").textContent = m.date || "";
+      document.getElementById("metricDecisions").textContent = m.decisions_made ?? 0;
+      document.getElementById("metricTools").textContent = m.tool_calls ?? 0;
+      document.getElementById("metricLLM").textContent = m.llm_calls ?? 0;
+      document.getElementById("metricTokens").textContent = m.tokens_used ?? 0;
 
-    const company = data.company || {};
-    document.getElementById("companyId").textContent = company.id || "";
-    document.getElementById("companyName").textContent = company.name || "—";
-    document.getElementById("companyIndustry").textContent = company.industry || "—";
-    document.getElementById("companyNorthStar").textContent = company.north_star_metric || "—";
-    document.getElementById("companyMarkets").textContent = (company.primary_markets || []).join(", ") || "—";
-    document.getElementById("companyProducts").textContent = (company.products_or_services || []).join(", ") || "—";
+      // Update metrics chart
+      const ctx = document.getElementById("metricsChart").getContext("2d");
+      const labels = ["Decisions","Tool Calls","KPI Updates","Events","LLM Calls","Tokens"];
+      const values = [
+        m.decisions_made || 0,
+        m.tool_calls || 0,
+        m.kpi_updates || 0,
+        m.events_processed || 0,
+        m.llm_calls || 0,
+        m.tokens_used || 0,
+      ];
+      if (metricsChart) metricsChart.destroy();
+      metricsChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "Today",
+            data: values,
+          }],
+        },
+        options: {
+          scales: {
+            x: {
+              ticks: { color: "#e5e7eb", font: { size: 11 }},
+              grid: { display: false },
+            },
+            y: {
+              ticks: { color: "#9ca3af", font: { size: 10 }},
+              grid: { color: "rgba(55,65,81,0.5)" },
+            },
+          },
+          plugins: {
+            legend: { labels: { color: "#e5e7eb" }},
+          },
+        },
+      });
 
-    const sub = document.getElementById("companySub");
-    if (company.name && company.north_star_metric) {
-      sub.textContent = company.name + " · North Star: " + company.north_star_metric;
-    } else if (company.name) {
-      sub.textContent = company.name;
+      const company = data.company || {};
+      document.getElementById("companyId").textContent = company.id || "";
+      document.getElementById("companyName").textContent = company.name || "—";
+      document.getElementById("companyIndustry").textContent = company.industry || "—";
+      document.getElementById("companyNorthStar").textContent = company.north_star_metric || "—";
+      document.getElementById("companyMarkets").textContent = (company.primary_markets || []).join(", ") || "—";
+      document.getElementById("companyProducts").textContent = (company.products_or_services || []).join(", ") || "—";
+
+      const sub = document.getElementById("companySub");
+      if (company.name && company.north_star_metric) {
+        sub.textContent = company.name + " · North Star: " + company.north_star_metric;
+      }
+    } else {
+      document.getElementById("snapshotDateYesterday").textContent = m.date || "";
     }
-
-    // Update metrics chart
-    const ctx = document.getElementById("metricsChart").getContext("2d");
-    const labels = ["Decisions","Tool Calls","KPI Updates","Events","LLM Calls","Tokens"];
-    const values = [
-      m.decisions_made || 0,
-      m.tool_calls || 0,
-      m.kpi_updates || 0,
-      m.events_processed || 0,
-      m.llm_calls || 0,
-      m.tokens_used || 0,
-    ];
-
-    if (metricsChart) metricsChart.destroy();
-    metricsChart = new Chart(ctx, {
-      type: "bar",
-      data: {
-        labels,
-        datasets: [{
-          label: "Today",
-          data: values,
-        }],
-      },
-      options: {
-        scales: {
-          x: {
-            ticks: {
-              color: "#e5e7eb",
-              font: { size: 11 },
-            },
-            grid: { display: false },
-          },
-          y: {
-            ticks: {
-              color: "#9ca3af",
-              font: { size: 10 },
-            },
-            grid: {
-              color: "rgba(55,65,81,0.5)",
-            },
-          },
-        },
-        plugins: {
-          legend: {
-            labels: { color: "#e5e7eb" },
-          },
-        },
-      },
-    });
   }
 
-  async function fetchSnapshotPreviousDay() {
-    const res = await fetch("/api/snapshot?day_offset=-1");
-    const data = await res.json();
-    const snapText = data.snapshot_text || "";
-    const m = data.metrics || {};
-
-    document.getElementById("prevSnapshotText").textContent = snapText.trim() || "No previous day summary.";
-    document.getElementById("prevSnapshotDate").textContent = m.date || "";
-  }
-
-  async function fetchTasks() {
+  async function fetchTasks(showToast = false) {
     const res = await fetch("/api/tasks");
     const data = await res.json();
 
     const tasks = data.tasks || [];
     const byArea = data.by_area || {};
     const byStatus = data.by_status || {};
+    const needsApproval = data.needs_approval_count || 0;
 
     const tbody = document.getElementById("tasksTableBody");
     tbody.innerHTML = "";
@@ -617,12 +713,8 @@ Loading…
           ? "bg-emerald-500/20 text-emerald-200 border border-emerald-500/40"
           : "bg-slate-800/80 text-slate-200 border border-slate-600/70";
 
-        const approveButton = (t.requires_approval && !t.approved)
-          ? `<button class="pill px-2 py-1 bg-emerald-500/80 hover:bg-emerald-400 text-slate-950 text-[10px] font-semibold"
-                     onclick="approveTask('${t.id}')">
-               Approve
-             </button>`
-          : `<span class="text-[10px] text-slate-500">—</span>`;
+        const needsApprovalText = t.requires_approval ? "Yes" : "No";
+        const approvedText = t.approved ? "Yes" : "No";
 
         row.innerHTML = `
           <td class="px-2 py-2 text-[10px] font-mono text-slate-500">${t.id ? t.id.slice(0,8) + "…" : ""}</td>
@@ -633,9 +725,22 @@ Loading…
           <td class="px-2 py-2 text-xs">
             <span class="pill px-2 py-1 text-[10px] ${statusClass}">${t.status}</span>
           </td>
-          <td class="px-2 py-2 text-xs">${t.requires_approval ? "Yes" : "No"}</td>
-          <td class="px-2 py-2 text-xs">${t.approved ? "Yes" : "No"}</td>
-          <td class="px-2 py-2 text-xs">${approveButton}</td>
+          <td class="px-2 py-2 text-xs">${needsApprovalText}</td>
+          <td class="px-2 py-2 text-xs">${approvedText}</td>
+          <td class="px-2 py-2 text-xs space-x-1">
+            <button
+              class="px-2 py-1 text-[10px] pill border border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/20 ${t.requires_approval && !t.approved ? "" : "opacity-30 cursor-not-allowed"}"
+              data-action="approve"
+              data-id="${t.id}"
+              ${t.requires_approval && !t.approved ? "" : "disabled"}
+            >Approve</button>
+            <button
+              class="px-2 py-1 text-[10px] pill border border-sky-500/60 text-sky-200 hover:bg-sky-500/20 ${t.status !== "done" ? "" : "opacity-30 cursor-not-allowed"}"
+              data-action="run"
+              data-id="${t.id}"
+              ${t.status !== "done" ? "" : "disabled"}
+            >Run</button>
+          </td>
         `;
         tbody.appendChild(row);
       }
@@ -645,6 +750,31 @@ Loading…
     const open = tasks.filter(t => t.status !== "done").length;
     document.getElementById("tasksSummary").textContent =
       `${total} total · ${open} open`;
+
+    const badge = document.getElementById("tasksApprovalBadge");
+    const badgeCount = document.getElementById("tasksApprovalCount");
+    if (needsApproval > 0) {
+      badge.classList.remove("hidden");
+      badgeCount.textContent = needsApproval;
+    } else {
+      badge.classList.add("hidden");
+    }
+
+    // wire action buttons
+    tbody.querySelectorAll("button[data-action]").forEach(btn => {
+      btn.addEventListener("click", async (ev) => {
+        const id = ev.currentTarget.getAttribute("data-id");
+        const action = ev.currentTarget.getAttribute("data-action");
+        if (!id || !action) return;
+
+        if (action === "approve") {
+          await fetch("/api/tasks/" + id + "/approve", { method: "POST" });
+        } else if (action === "run") {
+          await fetch("/api/tasks/" + id + "/run", { method: "POST" });
+        }
+        await fetchTasks();
+      });
+    });
 
     // Update area chart
     const ctxArea = document.getElementById("tasksAreaChart").getContext("2d");
@@ -671,154 +801,65 @@ Loading…
     });
   }
 
-  async function fetchVStaff() {
-    const res = await fetch("/api/state");
+  async function fetchVstaff() {
+    const res = await fetch("/api/vstaff");
     const data = await res.json();
-    const vstaff = data.vstaff || null;
 
-    const container = document.getElementById("vstaffContainer");
-    const summary = document.getElementById("vstaffSummary");
+    const employees = data.employees || [];
+    const tbody = document.getElementById("vstaffTableBody");
+    tbody.innerHTML = "";
 
-    if (!vstaff) {
-      container.innerHTML = '<p class="text-slate-500 text-xs">No virtual staff data available yet.</p>';
-      summary.textContent = "0 employees";
+    if (employees.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="px-2 py-3 text-center text-slate-500">No virtual staff data available yet.</td></tr>';
+      document.getElementById("vstaffSummary").textContent = "0 employees";
       return;
     }
 
-    // Try to interpret common structure: { employees: [...] }
-    const employees = Array.isArray(vstaff.employees) ? vstaff.employees : vstaff.employees || vstaff.emps || null;
-
-    if (employees && Array.isArray(employees)) {
-      summary.textContent = `${employees.length} employees`;
-      container.innerHTML = "";
-      for (const emp of employees) {
-        const tasks = emp.tasks || emp.assigned_tasks || [];
-        const role = emp.role || emp.title || "—";
-        const cap = emp.capacity || emp.remaining_task_slots || emp.capacity_summary || null;
-
-        const capText = (cap && typeof cap === "object")
-          ? (cap.remaining_task_slots !== undefined
-               ? `${cap.remaining_task_slots} slots`
-               : JSON.stringify(cap))
-          : (typeof cap === "number" ? `${cap} slots` : "—");
-
-        const card = document.createElement("div");
-        card.className = "border border-slate-700/70 rounded-lg p-3 bg-slate-900/60 space-y-2";
-
-        let tasksHtml = "";
-        if (tasks && tasks.length > 0) {
-          tasksHtml = '<ul class="space-y-1 text-[11px]">';
-          for (const t of tasks) {
-            const tt = t.title || t.task_title || "Task";
-            const ts = t.status || "unknown";
-            tasksHtml += `<li class="flex items-center justify-between gap-2">
-                <span class="truncate">${tt}</span>
-                <span class="pill px-2 py-0.5 bg-slate-800 text-[10px]">${ts}</span>
-              </li>`;
-          }
-          tasksHtml += "</ul>";
-        } else {
-          tasksHtml = '<p class="text-[11px] text-slate-500">No tasks assigned.</p>';
-        }
-
-        card.innerHTML = `
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="text-xs text-slate-400 uppercase tracking-wide">Role</p>
-              <p class="text-sm text-slate-100 font-medium">${role}</p>
-            </div>
-            <div class="text-right">
-              <p class="text-xs text-slate-400 uppercase tracking-wide">Employee ID</p>
-              <p class="text-[11px] font-mono text-slate-300">${emp.id || "—"}</p>
-              <p class="text-[11px] text-slate-400 mt-1">Capacity: ${capText}</p>
-            </div>
-          </div>
-          <div class="mt-2">
-            <p class="text-[11px] text-slate-400 mb-1">Allocated Tasks</p>
-            ${tasksHtml}
-          </div>
-        `;
-        container.appendChild(card);
-      }
-    } else {
-      // Fallback: show raw JSON
-      summary.textContent = "Custom vstaff structure";
-      container.innerHTML = `
-        <p class="text-[11px] text-slate-400 mb-1">Raw vstaff payload:</p>
-        <pre class="text-[11px] bg-slate-900/70 rounded-lg p-2 overflow-x-auto">${JSON.stringify(vstaff, null, 2)}</pre>
+    for (const e of employees) {
+      const row = document.createElement("tr");
+      const taskNames = (e.tasks || []).map(t => typeof t === "string" ? t : (t.title || t.task_title || "")).filter(Boolean);
+      row.innerHTML = `
+        <td class="px-2 py-2">${e.name || e.role || e.id}</td>
+        <td class="px-2 py-2 text-xs text-sky-300">${e.role || "—"}</td>
+        <td class="px-2 py-2 text-xs">${e.remaining_slots ?? "—"}</td>
+        <td class="px-2 py-2 text-xs">${taskNames.length ? taskNames.join(", ") : "—"}</td>
       `;
+      tbody.appendChild(row);
     }
+
+    document.getElementById("vstaffSummary").textContent = `${employees.length} employees`;
   }
 
-  async function planDay() {
+  async function fetchAll(showBusy = true) {
+    if (isRunning && showBusy) return;
     try {
-      const res = await fetch("/api/plan", { method: "POST" });
-      const data = await res.json();
-      if (!data.ok) {
-        alert("Plan day failed.");
-        return;
-      }
-      alert("Day planned. New tasks generated.");
-      await fetchTasks();
-      await fetchSnapshotToday();
-    } catch (e) {
-      console.error(e);
-      alert("Error planning day.");
+      if (showBusy) isRunning = true;
+      await Promise.all([
+        fetchSnapshot("today", "Today"),
+        fetchSnapshot("yesterday", "Yesterday"),
+        fetchTasks(),
+        fetchVstaff(),
+      ]);
+    } finally {
+      if (showBusy) isRunning = false;
     }
   }
 
-  async function runPendingTasks() {
-    try {
-      const res = await fetch("/api/tasks/run", { method: "POST" });
-      const data = await res.json();
-      if (!data.ok) {
-        alert("Run tasks failed.");
-        return;
-      }
-      const count = (data.results || []).length;
-      alert("Run complete: " + count + " tasks processed.");
-      await fetchTasks();
-      await fetchSnapshotToday();
-      await fetchVStaff();
-    } catch (e) {
-      console.error(e);
-      alert("Error running tasks.");
-    }
-  }
+  // Controls
+  document.getElementById("btnRefresh").addEventListener("click", () => {
+    countdown = refreshInterval;
+    fetchAll();
+  });
 
-  async function approveTask(taskId) {
-    if (!taskId) return;
-    const confirmApprove = confirm("Approve task " + taskId.slice(0,8) + "… ?");
-    if (!confirmApprove) return;
+  document.getElementById("btnPlan").addEventListener("click", async () => {
+    await fetch("/api/ceo/plan", { method: "POST" });
+    await fetchAll();
+  });
 
-    try {
-      const res = await fetch("/api/tasks/approve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task_id: taskId }),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        alert("Failed to approve task.");
-        return;
-      }
-      alert("Task approved.");
-      await fetchTasks();
-      await fetchSnapshotToday();
-    } catch (e) {
-      console.error(e);
-      alert("Error approving task.");
-    }
-  }
-
-  async function fetchAll() {
-    await Promise.all([
-      fetchSnapshotToday(),
-      fetchSnapshotPreviousDay(),
-      fetchTasks(),
-      fetchVStaff(),
-    ]);
-  }
+  document.getElementById("btnRunPending").addEventListener("click", async () => {
+    await fetch("/api/ceo/run_pending", { method: "POST" });
+    await fetchAll();
+  });
 
   // Initial load
   fetchAll();
@@ -828,3 +869,52 @@ Loading…
 </html>
     """
     return HTMLResponse(html)
+
+
+# -------------------------------------------------------------------
+# CLI runner (optional)
+# -------------------------------------------------------------------
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Agentic CEO Dashboard server")
+    parser.add_argument(
+        "--company",
+        type=str,
+        default=os.getenv("AGENTIC_CEO_COMPANY", DEFAULT_COMPANY_KEY),
+        help="Company key from company_config.yaml (default from AGENTIC_CEO_COMPANY or config)",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=os.getenv("AGENTIC_CEO_CONFIG", DEFAULT_CONFIG_PATH),
+        help="Path to company_config.yaml (default from AGENTIC_CEO_CONFIG or repo default)",
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Host to bind (default 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="Port to bind (default 8080)",
+    )
+    parser.add_argument(
+        "--reload",
+        action="store_true",
+        help="Enable auto-reload (dev only)",
+    )
+    args = parser.parse_args()
+
+    # Set env so get_brain() uses these
+    os.environ["AGENTIC_CEO_COMPANY"] = args.company
+    os.environ["AGENTIC_CEO_CONFIG"] = args.config
+
+    # Ensure brain is initialized once with these settings
+    get_brain()
+
+    import uvicorn
+
+    uvicorn.run("dashboard:app", host=args.host, port=args.port, reload=args.reload)

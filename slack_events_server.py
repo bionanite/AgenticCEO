@@ -148,21 +148,21 @@ async def slack_events(request: Request):
     # ------------------------------------------------
     if lower.startswith("cro:"):
         instruction = text.split(":", 1)[1].strip()
-        plan = brain.delegate_to_cro(instruction, company_context)
+        plan = await brain.delegate_to_cro(instruction, company_context)
         reply = f"🧠 *CRO Agent Response:*\n{plan}"
         send_slack_message(channel, reply)
         return JSONResponse(content={"ok": True})
 
     if lower.startswith("coo:"):
         instruction = text.split(":", 1)[1].strip()
-        plan = brain.delegate_to_coo(instruction, company_context)
+        plan = await brain.delegate_to_coo(instruction, company_context)
         reply = f"🧠 *COO Agent Response:*\n{plan}"
         send_slack_message(channel, reply)
         return JSONResponse(content={"ok": True})
 
     if lower.startswith("cto:"):
         instruction = text.split(":", 1)[1].strip()
-        plan = brain.delegate_to_cto(instruction, company_context)
+        plan = await brain.delegate_to_cto(instruction, company_context)
         reply = f"🧠 *CTO Agent Response:*\n{plan}"
         send_slack_message(channel, reply)
         return JSONResponse(content={"ok": True})
@@ -179,7 +179,7 @@ async def slack_events(request: Request):
 
     # Let the Agentic CEO process this as an event
     decision = brain.ingest_event("slack_message", payload)
-    results = brain.run_pending_tasks()
+    results = await brain.run_pending_tasks()
 
     # Build a human-readable reply
     lines = ["🧠 *Agentic CEO has processed your message.*"]

@@ -74,12 +74,23 @@ def ingest_event(event: EventIn):
 
 
 @app.post("/run_pending_tasks")
-def run_pending_tasks():
+async def run_pending_tasks():
     results = []
-    for t in ceo.state.tasks:
-        if t.status != "done":
-            res = ceo.run_task(t)
-            results.append({"task": t.title, "result": res})
+    tasks_to_run = [t for t in ceo.state.tasks if t.status != "done"]
+    
+    if not tasks_to_run:
+        return {"results": []}
+
+    # Use asyncio.gather to run tasks concurrently
+    # Note: This is a simplified direct call to ceo.run_task, bypassing CompanyBrain routing
+    # Ideally, main.py should use CompanyBrain, but it uses AgenticCEO directly.
+    # We'll stick to direct parallel execution here.
+    
+    async def run_single(t):
+        res = await ceo.run_task(t)
+        return {"task": t.title, "result": res}
+
+    results = await asyncio.gather(*[run_single(t) for t in tasks_to_run])
     return {"results": results}
 
 

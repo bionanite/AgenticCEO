@@ -1,0 +1,47 @@
+{
+  "company_id": "async_test",
+  "company_name": "AsyncTestCo",
+  "saved_at": "2025-11-23T15:10:07.440223",
+  "employees": [
+    {
+      "id": "d39566a6-9e03-46f3-a7f5-a3f15686a8fc",
+      "role": "Virtual Executive Assistant",
+      "title": "Virtual Executive Assistant",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-23T15:10:07.288636",
+      "active": true,
+      "notes": "Auto-created/used for task: Task 0",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 9
+    },
+    {
+      "id": "d1336d82-a87f-41c6-8e1f-ed220b727e1e",
+      "role": "Virtual Executive Assistant",
+      "title": "Virtual Executive Assistant",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-23T15:10:07.314731",
+      "active": true,
+      "notes": "Auto-created/used for task: Task 1",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    }
+  ]
+}

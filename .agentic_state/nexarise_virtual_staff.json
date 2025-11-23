@@ -1,7 +1,7 @@
 {
   "company_id": "nexarise",
   "company_name": "NextArise Estate",
-  "saved_at": "2025-11-21T06:38:42.429027",
+  "saved_at": "2025-11-21T07:05:03.401212",
   "employees": [
     {
       "id": "d338652c-8bd7-4e03-b887-27a7cb4c041d",
@@ -147,6 +147,172 @@
       "created_at": "2025-11-21T06:38:42.416075",
       "active": true,
       "notes": "Auto-created/used for task: Smart Search Feature Enhancement",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "665c0865-41c6-4fa3-a482-630c15c8133a",
+      "role": "Virtual SDR",
+      "title": "Virtual SDR",
+      "owner_kpi": null,
+      "department": "Sales",
+      "skills": [
+        "outbound",
+        "inbound",
+        "crm",
+        "follow-ups",
+        "pipeline-management"
+      ],
+      "tools": [
+        "email",
+        "slack",
+        "crm",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:03:47.896013",
+      "active": true,
+      "notes": "Auto-created/used for task: UK Investor Lead Outreach",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "89c58b76-f0db-4229-8afd-f6b20c420a52",
+      "role": "Virtual Product Manager",
+      "title": "Virtual Product Manager",
+      "owner_kpi": null,
+      "department": "Product",
+      "skills": [
+        "roadmap",
+        "spec-writing",
+        "user-research",
+        "prioritisation"
+      ],
+      "tools": [
+        "notion",
+        "slack",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:03:47.932236",
+      "active": true,
+      "notes": "Auto-created/used for task: AI Valuation Model Tuning",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "0fea95ea-0a1d-46db-8d92-53a0a8f435af",
+      "role": "Virtual Sales Account Executive",
+      "title": "Virtual Sales Account Executive",
+      "owner_kpi": null,
+      "department": "Sales",
+      "skills": [
+        "outbound",
+        "inbound",
+        "crm",
+        "follow-ups",
+        "pipeline-management"
+      ],
+      "tools": [
+        "email",
+        "slack",
+        "crm",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:04:04.124237",
+      "active": true,
+      "notes": "Auto-created/used for task: Client Follow-Up & Deal Acceleration",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "9831965f-85ff-4262-9005-870f69a7a8d9",
+      "role": "Virtual Social Media & Content Manager",
+      "title": "Virtual Social Media & Content Manager",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:04:19.416356",
+      "active": true,
+      "notes": "Auto-created/used for task: Dubai Property Investment Campaign",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "1e5a94ba-8d90-427f-881c-7f2a936eae45",
+      "role": "Virtual Operations Manager",
+      "title": "Virtual Operations Manager",
+      "owner_kpi": null,
+      "department": "Operations",
+      "skills": [
+        "process-design",
+        "sops",
+        "qa",
+        "incident-management"
+      ],
+      "tools": [
+        "notion",
+        "slack",
+        "helpdesk",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:04:32.111820",
+      "active": true,
+      "notes": "Auto-created/used for task: Deal Process Optimization",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "677791df-a015-4b9f-9760-63001b744ac8",
+      "role": "Virtual Data Analyst",
+      "title": "Virtual Data Analyst",
+      "owner_kpi": null,
+      "department": "Technology",
+      "skills": [
+        "architecture",
+        "backlog",
+        "review",
+        "experiments"
+      ],
+      "tools": [
+        "slack",
+        "notion",
+        "github",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:04:54.002044",
+      "active": true,
+      "notes": "Auto-created/used for task: Monthly Deals Dashboard Update",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "4968b45e-1d2e-46ef-9e90-54e2bc473191",
+      "role": "Virtual Customer Success Manager",
+      "title": "Virtual Customer Success Manager",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:05:03.388106",
+      "active": true,
+      "notes": "Auto-created/used for task: Post-Sale Client Feedback Collection",
       "performance_score": 1.0,
       "tasks_assigned_today": 1
     }

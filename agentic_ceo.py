@@ -208,6 +208,7 @@ class LogTool:
 class LLMClient(Protocol):
     """You can back this with OpenAI, Groq, local model, etc."""
     def complete(self, system_prompt: str, user_prompt: str) -> str: ...
+    async def acomplete(self, system_prompt: str, user_prompt: str) -> str: ...
     def get_last_usage(self) -> Dict[str, int]: ...
 
 
@@ -425,7 +426,7 @@ class AgenticCEO:
 
         return response
 
-    def run_task(self, task: CEOTask) -> Dict[str, Any]:
+    async def run_task(self, task: CEOTask) -> Dict[str, Any]:
         """
         Execute a task by invoking a tool (if suggested), otherwise just log it.
 
@@ -458,7 +459,11 @@ class AgenticCEO:
             payload = task.tool_input or {"message": task.description or task.title}
 
             try:
-                result = tool.run(payload)
+                # Support async tools if they expose arun, otherwise sync run
+                if hasattr(tool, "arun"):
+                    result = await tool.arun(payload)
+                else:
+                    result = tool.run(payload)
             except Exception as e:
                 # Hard failure from the tool itself
                 task.status = "blocked"

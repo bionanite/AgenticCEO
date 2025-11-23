@@ -23,6 +23,7 @@ Slack and/or email via MCP tools.
 
 from __future__ import annotations
 
+import asyncio
 import argparse
 import os
 import json
@@ -32,7 +33,7 @@ from company_brain import CompanyBrain, DEFAULT_CONFIG_PATH
 from ceo_notifications import NotificationRouter
 
 
-def run_auto_for_company(
+async def run_auto_for_company(
     company_key: str,
     config_path: str,
     mode: str = "auto",
@@ -44,7 +45,6 @@ def run_auto_for_company(
         config_path=config_path,
         company_key=company_key,
     )
-
     company_name = brain.company_profile.name
 
     print(f"\n=== AUTO RUN for: {company_key} ===")
@@ -57,7 +57,7 @@ def run_auto_for_company(
 
     # --- RUN TASKS ---
     print("\n=== RUN TASKS ===")
-    results = brain.run_pending_tasks()
+    results = await brain.run_pending_tasks()
     if results:
         print(json.dumps(results, indent=2, default=str))
     else:
@@ -135,13 +135,13 @@ def main() -> None:
     if args.notify_channels:
         channels = [c.strip() for c in args.notify_channels.split(",") if c.strip()]
 
-    run_auto_for_company(
+    asyncio.run(run_auto_for_company(
         company_key=args.company,
         config_path=args.config,
         mode=args.mode,
         notify=args.notify,
         notify_channels=channels,
-    )
+    ))
 
 
 if __name__ == "__main__":

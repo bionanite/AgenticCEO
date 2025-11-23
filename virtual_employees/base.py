@@ -55,7 +55,7 @@ class BaseVirtualEmployee:
     def title(self) -> str:
         return self.config.title
 
-    def run_task(self, task: CEOTask) -> str:
+    async def run_task(self, task: CEOTask) -> str:
         """
         Take a CEOTask and "do the work" for it using the LLM.
 
@@ -87,7 +87,11 @@ class BaseVirtualEmployee:
             "meaningfully forward today."
         )
 
-        result = self.llm.complete(system_prompt, user_prompt)
+        if hasattr(self.llm, "acomplete"):
+            result = await self.llm.acomplete(system_prompt, user_prompt)
+        else:
+            # Fallback for synchronous LLMs
+            result = self.llm.complete(system_prompt, user_prompt)
 
         # Optional memory logging
         if self.memory is not None:

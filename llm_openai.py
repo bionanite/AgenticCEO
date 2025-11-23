@@ -18,6 +18,9 @@ class LLMClient(Protocol):
     def complete(self, system_prompt: str, user_prompt: str) -> str:
         ...
 
+    async def acomplete(self, system_prompt: str, user_prompt: str) -> str:
+        ...
+
     def get_last_usage(self) -> Dict[str, int]:
         ...
 
@@ -30,6 +33,8 @@ class OpenAILLM:
 
     def __init__(self, model: str = "gpt-4.1-mini", temperature: float = 0.2):
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        # Initialize async client lazily to avoid event loop issues at import time
+        self._async_client = None
         self.model = model
         self.temperature = temperature
         self.last_usage: Dict[str, int] = {
@@ -38,8 +43,37 @@ class OpenAILLM:
             "total_tokens": 0,
         }
 
+    @property
+    def async_client(self):
+        if self._async_client is None:
+            from openai import AsyncOpenAI
+            self._async_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        return self._async_client
+
     def complete(self, system_prompt: str, user_prompt: str) -> str:
         response = self.client.chat.completions.create(
+            model=self.model,
+            temperature=self.temperature,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+
+        # Track usage
+        usage = response.usage
+        if usage:
+            self.last_usage = {
+                "prompt_tokens": usage.prompt_tokens,
+                "completion_tokens": usage.completion_tokens,
+                "total_tokens": usage.total_tokens,
+            }
+
+        content = response.choices[0].message.content
+        return content.strip() if content else ""
+
+    async def acomplete(self, system_prompt: str, user_prompt: str) -> str:
+        response = await self.async_client.chat.completions.create(
             model=self.model,
             temperature=self.temperature,
             messages=[

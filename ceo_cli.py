@@ -19,6 +19,7 @@ Commands (interactive prompt):
 
 from __future__ import annotations
 
+import asyncio
 import argparse
 import json
 import os
@@ -205,7 +206,8 @@ def cmd_vstaff(brain: CompanyBrain) -> None:
 def cmd_run(brain: CompanyBrain) -> None:
     print("\n=== RUN PENDING TASKS ===")
     try:
-        results = brain.run_pending_tasks()
+        # Run the async method in a synchronous context
+        results = asyncio.run(brain.run_pending_tasks())
         if not results:
             print("No pending tasks.")
             return

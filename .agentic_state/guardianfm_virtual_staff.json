@@ -1,0 +1,492 @@
+{
+  "company_id": "guardianfm",
+  "company_name": "GuardianFM Ltd",
+  "saved_at": "2025-11-21T07:33:31.250587",
+  "employees": [
+    {
+      "id": "74ee7990-5365-4d1d-92a8-8317af9955f5",
+      "role": "Virtual SDR",
+      "title": "Virtual SDR",
+      "owner_kpi": null,
+      "department": "Sales",
+      "skills": [
+        "outbound",
+        "inbound",
+        "crm",
+        "follow-ups",
+        "pipeline-management"
+      ],
+      "tools": [
+        "email",
+        "slack",
+        "crm",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:14:14.522553",
+      "active": true,
+      "notes": "Auto-created/used for task: Targeted Outreach Campaign",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 3
+    },
+    {
+      "id": "0e96c0ee-14a7-4a03-ad5a-385acf170641",
+      "role": "Virtual Product Manager",
+      "title": "Virtual Product Manager",
+      "owner_kpi": null,
+      "department": "Product",
+      "skills": [
+        "roadmap",
+        "spec-writing",
+        "user-research",
+        "prioritisation"
+      ],
+      "tools": [
+        "notion",
+        "slack",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:14:14.575455",
+      "active": true,
+      "notes": "Auto-created/used for task: Scheduling Optimization Review",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 10
+    },
+    {
+      "id": "82283c68-0fd0-4a91-a986-26b565d123a3",
+      "role": "Virtual Product Manager",
+      "title": "Virtual Product Manager",
+      "owner_kpi": null,
+      "department": "Product",
+      "skills": [
+        "roadmap",
+        "spec-writing",
+        "user-research",
+        "prioritisation"
+      ],
+      "tools": [
+        "notion",
+        "slack",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:14:17.222554",
+      "active": true,
+      "notes": "Auto-created/used for task: Scheduling Optimization Review",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "61480bc2-b1ce-4b8f-96cc-96c2430b6a2a",
+      "role": "Virtual Customer Success Manager",
+      "title": "Virtual Customer Success Manager",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:14:26.444602",
+      "active": true,
+      "notes": "Auto-created/used for task: Client Onboarding Audit",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 11
+    },
+    {
+      "id": "45d34c2c-e482-4bea-819c-5f73d2371fa7",
+      "role": "Virtual Customer Success Manager",
+      "title": "Virtual Customer Success Manager",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:14:29.311860",
+      "active": true,
+      "notes": "Auto-created/used for task: Client Onboarding Audit",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "a000c489-3c3d-45c3-a4c7-fedd18593d13",
+      "role": "Virtual Social Media & Content Manager",
+      "title": "Virtual Social Media & Content Manager",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:14:40.665292",
+      "active": true,
+      "notes": "Auto-created/used for task: Case Study Promotion",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 3
+    },
+    {
+      "id": "9874bef5-bed6-40da-9fdf-b42824ea2483",
+      "role": "Virtual Finance Manager",
+      "title": "Virtual Finance Manager",
+      "owner_kpi": null,
+      "department": "Finance",
+      "skills": [
+        "cashflow",
+        "invoicing",
+        "forecasting"
+      ],
+      "tools": [
+        "sheets",
+        "email",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:14:41.197786",
+      "active": true,
+      "notes": "Auto-created/used for task: Case Study Promotion",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 20
+    },
+    {
+      "id": "0a6b7696-1c92-45aa-b598-49895fb19117",
+      "role": "Virtual Finance Manager",
+      "title": "Virtual Finance Manager",
+      "owner_kpi": null,
+      "department": "Finance",
+      "skills": [
+        "cashflow",
+        "invoicing",
+        "forecasting"
+      ],
+      "tools": [
+        "sheets",
+        "email",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:14:42.716325",
+      "active": true,
+      "notes": "Auto-created/used for task: Case Study Promotion",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "d4239975-94b0-4a53-be06-de8c170226c6",
+      "role": "Virtual Operations Manager",
+      "title": "Virtual Operations Manager",
+      "owner_kpi": null,
+      "department": "Operations",
+      "skills": [
+        "process-design",
+        "sops",
+        "qa",
+        "incident-management"
+      ],
+      "tools": [
+        "notion",
+        "slack",
+        "helpdesk",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:14:50.515316",
+      "active": true,
+      "notes": "Auto-created/used for task: Mobile Patrol Route Efficiency",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 3
+    },
+    {
+      "id": "b31c3620-313d-4044-99f7-9d7ff0f2d74d",
+      "role": "Virtual SDR",
+      "title": "Virtual SDR",
+      "owner_kpi": null,
+      "department": "Sales",
+      "skills": [
+        "outbound",
+        "inbound",
+        "crm",
+        "follow-ups",
+        "pipeline-management"
+      ],
+      "tools": [
+        "email",
+        "slack",
+        "crm",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:15:00.852238",
+      "active": true,
+      "notes": "Auto-created/used for task: Lead Generation Campaign",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "b23a1e36-6cdb-48ca-b2b5-ee65710d602d",
+      "role": "Virtual Data Analyst",
+      "title": "Virtual Data Analyst",
+      "owner_kpi": null,
+      "department": "Technology",
+      "skills": [
+        "architecture",
+        "backlog",
+        "review",
+        "experiments"
+      ],
+      "tools": [
+        "slack",
+        "notion",
+        "github",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:15:00.884914",
+      "active": true,
+      "notes": "Auto-created/used for task: Analyze Client Usage Patterns",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 9
+    },
+    {
+      "id": "914a4d0b-0aeb-478e-9528-825428f7a8e8",
+      "role": "Virtual Data Analyst",
+      "title": "Virtual Data Analyst",
+      "owner_kpi": null,
+      "department": "Technology",
+      "skills": [
+        "architecture",
+        "backlog",
+        "review",
+        "experiments"
+      ],
+      "tools": [
+        "slack",
+        "notion",
+        "github",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:15:01.777366",
+      "active": true,
+      "notes": "Auto-created/used for task: Analyze Client Usage Patterns",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "54695fd1-7170-4516-bc2f-21403688b7ab",
+      "role": "Virtual Social Media & Content Manager",
+      "title": "Virtual Social Media & Content Manager",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:15:08.429670",
+      "active": true,
+      "notes": "Auto-created/used for task: Targeted LinkedIn Ads",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "0ee7a99f-8d11-416c-b279-c369df4061b3",
+      "role": "Virtual Operations Manager",
+      "title": "Virtual Operations Manager",
+      "owner_kpi": null,
+      "department": "Operations",
+      "skills": [
+        "process-design",
+        "sops",
+        "qa",
+        "incident-management"
+      ],
+      "tools": [
+        "notion",
+        "slack",
+        "helpdesk",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:15:15.521753",
+      "active": true,
+      "notes": "Auto-created/used for task: Onboarding Workflow Optimization",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "6ba6c35d-1c79-49d0-a8f8-bb41b0665b20",
+      "role": "Virtual Finance Manager",
+      "title": "Virtual Finance Manager",
+      "owner_kpi": null,
+      "department": "Finance",
+      "skills": [
+        "cashflow",
+        "invoicing",
+        "forecasting"
+      ],
+      "tools": [
+        "sheets",
+        "email",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:15:18.466187",
+      "active": true,
+      "notes": "Auto-created/used for task: Onboarding Workflow Optimization",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "4b9b0307-d1eb-475c-8563-c16f8c238ead",
+      "role": "Virtual Sales Account Executive",
+      "title": "Virtual Sales Account Executive",
+      "owner_kpi": null,
+      "department": "Sales",
+      "skills": [
+        "outbound",
+        "inbound",
+        "crm",
+        "follow-ups",
+        "pipeline-management"
+      ],
+      "tools": [
+        "email",
+        "slack",
+        "crm",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:15:27.346748",
+      "active": true,
+      "notes": "Auto-created/used for task: Client Follow-Up",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "65e6edee-95c8-4724-b8d3-057c08e2e1f2",
+      "role": "Virtual Executive Assistant",
+      "title": "Virtual Executive Assistant",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:15:29.334888",
+      "active": true,
+      "notes": "Auto-created/used for task: Client Follow-Up",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 4
+    },
+    {
+      "id": "42fec28d-546d-4a65-ba2a-2cbac73d41c9",
+      "role": "Virtual Executive Assistant",
+      "title": "Virtual Executive Assistant",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:15:29.938127",
+      "active": true,
+      "notes": "Auto-created/used for task: Client Follow-Up",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "edecf9c1-8a0b-4cd6-8923-96a1b1ec5c4e",
+      "role": "Virtual Sales Account Executive",
+      "title": "Virtual Sales Account Executive",
+      "owner_kpi": null,
+      "department": "Sales",
+      "skills": [
+        "outbound",
+        "inbound",
+        "crm",
+        "follow-ups",
+        "pipeline-management"
+      ],
+      "tools": [
+        "email",
+        "slack",
+        "crm",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:16:20.598200",
+      "active": true,
+      "notes": "Auto-created/used for task: Upsell Analysis",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "738a406b-a1e6-4315-8d85-196acf86e99a",
+      "role": "Virtual Customer Success Manager",
+      "title": "Virtual Customer Success Manager",
+      "owner_kpi": null,
+      "department": "General",
+      "skills": [
+        "analysis",
+        "reporting"
+      ],
+      "tools": [
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:16:53.581046",
+      "active": true,
+      "notes": "Auto-created/used for task: Client Feedback Collection",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    },
+    {
+      "id": "f4009e72-b5c0-4bc0-978e-8332bb04d512",
+      "role": "Virtual Product Manager",
+      "title": "Virtual Product Manager",
+      "owner_kpi": null,
+      "department": "Product",
+      "skills": [
+        "roadmap",
+        "spec-writing",
+        "user-research",
+        "prioritisation"
+      ],
+      "tools": [
+        "notion",
+        "slack",
+        "log_tool"
+      ],
+      "max_daily_tasks": 10,
+      "created_at": "2025-11-21T07:33:31.234357",
+      "active": true,
+      "notes": "Auto-created/used for task: Reporting Feature Enhancement",
+      "performance_score": 1.0,
+      "tasks_assigned_today": 1
+    }
+  ]
+}
