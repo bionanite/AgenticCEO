@@ -19,6 +19,15 @@ companies:
     team_size: 25
     website: https://nextchat.life
 
+    # Autonomous operation settings
+    autonomy:
+      enabled: false  # Set to true to enable continuous autonomous operation
+      cycle_interval_seconds: 3600  # How often to run autonomous cycles (default: 1 hour)
+      auto_approve_tasks: false  # Auto-approve tasks that don't require explicit approval
+      max_tasks_per_cycle: 50  # Maximum tasks to execute per cycle (safety limit)
+      stale_task_threshold_hours: 24  # Tasks older than this are considered stale
+      blocked_task_threshold_hours: 48  # Blocked tasks older than this are escalated
+
     kpis:
       - name: "MRR"
         unit: "USD"

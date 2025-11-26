@@ -377,6 +377,64 @@ def api_vstaff() -> JSONResponse:
     return JSONResponse(payload)
 
 
+@app.get("/api/autonomy/status")
+def api_autonomy_status() -> JSONResponse:
+    """
+    Check if autonomous mode is running and return cycle statistics.
+    """
+    try:
+        import psutil
+    except ImportError:
+        # psutil not available, return basic status
+        return JSONResponse({
+            "autonomy_running": False,
+            "cycle_count": 0,
+            "last_cycle_time": None,
+            "status": "unknown",
+            "error": "psutil not installed",
+        })
+    
+    import json
+    from pathlib import Path
+    
+    # Check if ceo_auto.py is running in continuous mode
+    autonomy_running = False
+    cycle_count = 0
+    last_cycle_time = None
+    
+    # Look for ceo_auto.py processes with --continuous flag
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                cmdline = proc.info.get('cmdline', [])
+                if cmdline and any('ceo_auto.py' in str(cmd) for cmd in cmdline):
+                    if '--continuous' in cmdline:
+                        autonomy_running = True
+                        break
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+    except Exception:
+        pass  # If we can't check processes, assume not running
+    
+    # Try to read cycle statistics from a state file (if it exists)
+    state_file = Path(".agentic_state/autonomy_cycles.json")
+    if state_file.exists():
+        try:
+            with open(state_file, 'r') as f:
+                cycle_data = json.load(f)
+                cycle_count = cycle_data.get('total_cycles', 0)
+                last_cycle_time = cycle_data.get('last_cycle_time')
+        except Exception:
+            pass
+    
+    return JSONResponse({
+        "autonomy_running": autonomy_running,
+        "cycle_count": cycle_count,
+        "last_cycle_time": last_cycle_time,
+        "status": "running" if autonomy_running else "stopped",
+    })
+
+
 # -------------------------------------------------------------------
 # HTML dashboard – Tailwind + Chart.js, auto-refresh
 # -------------------------------------------------------------------
@@ -418,6 +476,14 @@ def index() -> HTMLResponse:
       <p class="text-slate-400 text-sm md:text-base mt-1" id="companySub">
         Loading company context…
       </p>
+      <!-- Autonomy Status Badge -->
+      <div class="mt-2 flex items-center gap-2">
+        <span id="autonomyStatusBadge" class="pill px-3 py-1 text-xs bg-slate-800/80 border border-slate-700 text-slate-300">
+          <span id="autonomyStatusDot" class="inline-block w-2 h-2 rounded-full bg-slate-500 mr-1"></span>
+          <span id="autonomyStatusText">Checking autonomy status...</span>
+        </span>
+        <span id="autonomyCycleInfo" class="text-xs text-slate-500"></span>
+      </div>
     </div>
 
     <div class="flex flex-wrap gap-2 items-center">
@@ -873,6 +939,40 @@ Loading yesterday…
     document.getElementById("vstaffSummary").textContent = `${employees.length} employees`;
   }
 
+  async function fetchAutonomyStatus() {
+    try {
+      const res = await fetch("/api/autonomy/status");
+      const data = await res.json();
+      
+      const badge = document.getElementById("autonomyStatusBadge");
+      const dot = document.getElementById("autonomyStatusDot");
+      const text = document.getElementById("autonomyStatusText");
+      const cycleInfo = document.getElementById("autonomyCycleInfo");
+      
+      if (data.autonomy_running) {
+        badge.className = "pill px-3 py-1 text-xs bg-emerald-500/10 border border-emerald-400/40 text-emerald-200";
+        dot.className = "inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1 animate-pulse";
+        text.textContent = "Autonomous Mode: RUNNING";
+        
+        if (data.cycle_count > 0) {
+          cycleInfo.textContent = `Cycles: ${data.cycle_count}`;
+          if (data.last_cycle_time) {
+            const lastCycle = new Date(data.last_cycle_time);
+            const ago = Math.floor((Date.now() - lastCycle.getTime()) / 1000 / 60);
+            cycleInfo.textContent += ` | Last: ${ago}m ago`;
+          }
+        }
+      } else {
+        badge.className = "pill px-3 py-1 text-xs bg-slate-800/80 border border-slate-700 text-slate-300";
+        dot.className = "inline-block w-2 h-2 rounded-full bg-slate-500 mr-1";
+        text.textContent = "Autonomous Mode: STOPPED";
+        cycleInfo.textContent = "";
+      }
+    } catch (e) {
+      console.error("Failed to fetch autonomy status:", e);
+    }
+  }
+
   async function fetchAll(showBusy = true) {
     if (isRunning && showBusy) return;
     try {
@@ -882,6 +982,7 @@ Loading yesterday…
         fetchSnapshot("yesterday", "Yesterday"),
         fetchTasks(),
         fetchVstaff(),
+        fetchAutonomyStatus(),
       ]);
     } finally {
       if (showBusy) isRunning = false;
